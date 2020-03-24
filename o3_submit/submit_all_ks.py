@@ -15,7 +15,7 @@ def parse_command_line_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Launches a specified mode for all Ks")
     parser.add_argument("-c", "--config", default="spectrumsdt.config", help="Path to configuration file")
     parser.add_argument("stage", help="Stage name: basis, overlaps, diagonalization or properties")
-    parser.add_argument("-o", "--options", help="Custom submission parameters for a stage")
+    parser.add_argument("-o", "--options", default="", help="Custom submission parameters for a stage")
     parser.add_argument("-s", "--sym", choices=["even", "odd", "all"], default="all", help="Symmetry")
     parser.add_argument("-nc", "--no-cor", action="store_true", help="Disable coriolis coupling for diagonalization")
     args = parser.parse_args()
