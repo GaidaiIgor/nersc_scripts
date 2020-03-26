@@ -220,7 +220,7 @@ class ParameterMaster:
     @staticmethod
     def set_diagonalization_params(config: SpectrumConfig, args: argparse.Namespace):
         fix_basis_jk = config.get_fix_basis_jk()
-        basis_K = config.get_basis_k()
+        basis_K = config.get_basis_k() if fix_basis_jk == 1 else -1
         root_path = config.get_basis_root_path() if fix_basis_jk == 1 else config.get_root_path()
         ks = config.get_ks()
         k_start = ks[0]
