@@ -15,7 +15,7 @@ from SpectrumConfig import SpectrumConfig
 
 class SubmissionScript:
     def __init__(self, filesystem: str, qos: str, nodes: str, time: str, job_name: str, out_name: str, node_type: str,
-            n_procs: str, cores_per_proc: str, program_location: str, prg_name: str):
+            n_procs: str, cores_per_proc: str, program_location: str, prg_name: str, prg_out_file_name: str):
         self.filesystem = filesystem
         self.qos = qos
         self.nodes = nodes
@@ -27,6 +27,7 @@ class SubmissionScript:
         self.cores_per_proc = cores_per_proc
         self.program_location = program_location
         self.prg_name = prg_name
+        self.prg_out_file_name = prg_out_file_name
         self.script_name = path.splitext(self.out_name)[0] + ".sbatch"
 
     @classmethod
@@ -38,7 +39,7 @@ class SubmissionScript:
 
         cores_per_proc = str(int(ParameterMaster.get_cores_per_node() * args.nodes / args.nprocs) * ParameterMaster.get_threads_per_core())
         return cls(args.filesystem, args.qos, nodes, time, args.jobname, args.outname, ParameterMaster.nodes_type, 
-                n_procs, cores_per_proc, args.program_location, args.prg_name)
+                n_procs, cores_per_proc, args.program_location, args.prg_name, args.prg_out_file_name)
 
     def write(self):
         filesystem_line = "#SBATCH -L SCRATCH\n" if self.filesystem == "scratch" else ""
@@ -63,7 +64,7 @@ class SubmissionScript:
                   + "\n"
                   + "date\n"
                   + "echo $SLURM_JOB_ID\n"
-                  + "time srun -n " + self.n_procs + " -c " + self.cores_per_proc + " --cpu_bind=cores " + path.join(self.program_location, self.prg_name))
+                  + "srun -n " + self.n_procs + " -c " + self.cores_per_proc + " --cpu_bind=cores time -v " + self.prg_name + " > " + self.prg_out_file_name)
         with open(self.script_name, "w") as output:
             output.write(script)
 
@@ -367,6 +368,7 @@ def parse_command_line_args() -> argparse.Namespace:
     parser.add_argument("-np", "--nprocs", type=int, help="Desired number of processes")
     parser.add_argument("-jn", "--jobname", help="Job name")
     parser.add_argument("-on", "--outname", help="Slurm output file name")
+    parser.add_argument("-pon", "--prg-out-file-name", default="prg.out", help="Name of a separate file with program output only")
     parser.add_argument("-go", "--gen-only", action="store_true", help="Generate sbatch without submission")
     parser.add_argument("-ht", "--hyperthreading", dest="hyperthreading", action="store_true",
                         help="Specify to enable hyperthreading")
@@ -380,9 +382,6 @@ def parse_command_line_args() -> argparse.Namespace:
     parser.add_argument("-fs", "--filesystem", default="none", help="Controls filesystem requirements")
     parser.add_argument("-O0", "--no-opt", action="store_true", help="Specify to use non-optimized version of the code")
     parser.add_argument("-knl", "--knl", dest="haswell", action="store_false", help="Specify to use KNL nodes")
-    #  group = parser.add_mutually_exclusive_group()
-    #  group.add_argument("--dev", dest="dev_version", action="store_true", help="Specify to use developer version of code (devbin variable)")
-    #  group.add_argument("--alex", dest="alex_version", action="store_true", help="Specify to use Alex's version of code (alexbin variable)")
 
     args = parser.parse_args()
     return args
