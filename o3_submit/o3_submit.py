@@ -64,7 +64,7 @@ class SubmissionScript:
                   + "\n"
                   + "date\n"
                   + "echo $SLURM_JOB_ID\n"
-                  + "srun -n " + self.n_procs + " -c " + self.cores_per_proc + " --cpu_bind=cores time -v " + self.prg_name + " > " + self.prg_out_file_name)
+                  + "srun -n " + self.n_procs + " -c " + self.cores_per_proc + " --cpu_bind=cores time " + self.prg_name + " > " + self.prg_out_file_name)
         with open(self.script_name, "w") as output:
             output.write(script)
 
