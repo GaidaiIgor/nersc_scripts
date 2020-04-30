@@ -84,8 +84,9 @@ def main():
     target_folders = []
     config_lines = []
     if not args.rovib_only:
-        basis_K = int(config.params["basis_K"]) if "fix_basis_jk" in config.params else -1
-        K_range = range(basis_K, basis_K + 1) if "fix_basis_jk" in config.params else range(J + 1)
+        fix_basis_jk = int(config.params["fix_basis_jk"]) if "fix_basis_jk" in config.params else 0
+        basis_K = int(config.params["basis_K"]) if fix_basis_jk == 1  else -1
+        K_range = range(basis_K, basis_K + 1) if fix_basis_jk == 1 else range(J + 1)
         for K in K_range:
             current_folder_names = copy.deepcopy(folder_names)
             current_folder_names[0][0] = current_folder_names[0][0].format(K)
