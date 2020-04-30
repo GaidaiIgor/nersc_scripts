@@ -14,9 +14,8 @@ from SpectrumConfig import SpectrumConfig
 def parse_command_line_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Creates a folder structure for calculations with a given config")
     parser.add_argument("-c", "--config", default="spectrumsdt.config", help="Path to configuration file")
-    parser.add_argument("-rvo", "--rovib-only", action="store_true", help="Specify to generate only folders for rovibrational diagonalization")
     parser.add_argument("-J", type=int, required=False, help="J value (rotational quantum number) for current calculation")
-    parser.add_argument("-K", type=int, required=False, help="Only folders for specified K value will be created")
+    parser.add_argument("-K", help="Only folders for specified K value will be created")
     args = parser.parse_args()
     return args
 
@@ -83,10 +82,25 @@ def main():
 
     target_folders = []
     config_lines = []
-    if not args.rovib_only:
+    skip_sym_top = False
+
+    if args.K is None:
+        # Specific Ks are not provied, so generate all
+        # Set up symmetric top folders
         fix_basis_jk = int(config.params["fix_basis_jk"]) if "fix_basis_jk" in config.params else 0
-        basis_K = int(config.params["basis_K"]) if fix_basis_jk == 1  else -1
-        K_range = range(basis_K, basis_K + 1) if fix_basis_jk == 1 else range(J + 1)
+        if fix_basis_jk == 0:
+            K_range = range(J + 1)
+        else:
+            basis_K = int(config.params["basis_K"])
+            K_range = range(basis_K, basis_K + 1)
+    else:
+        if args.K == "all":
+            skip_sym_top = True
+        else:
+            K = int(args.K)
+            K_range = range(K, K + 1)
+
+    if not skip_sym_top:
         for K in K_range:
             current_folder_names = copy.deepcopy(folder_names)
             current_folder_names[0][0] = current_folder_names[0][0].format(K)
@@ -98,9 +112,10 @@ def main():
             current_config_lines = generate_config_lines(current_folder_params)
             config_lines = config_lines + current_config_lines
 
-
-    target_folders = target_folders + generate_paths(base_path, folder_names_cor)
-    config_lines = config_lines + generate_config_lines(folder_params_cor)
+    # Set up rovibrational folders
+    if args.K is None or args.K == "all":
+        target_folders = target_folders + generate_paths(base_path, folder_names_cor)
+        config_lines = config_lines + generate_config_lines(folder_params_cor)
 
     create_paths(target_folders)
     config_paths = multicopy_config(config_path, target_folders)
