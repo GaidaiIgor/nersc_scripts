@@ -237,11 +237,15 @@ class ParameterMaster:
             sym = 1 - sym
 
         # set up parameters
-        ncv = config.get_ncv()
-        args.nprocs = int(matrix_size / ncv)
-        if args.nprocs > ParameterMaster.get_cores_per_node():
-            args.nprocs = args.nprocs - args.nprocs % ParameterMaster.get_cores_per_node()
-            args.nprocs = min(args.nprocs, ParameterMaster.get_cores_per_node() * 3)
+        if config.get_solver() == "parpack":
+            ncv = config.get_ncv()
+            args.nprocs = int(matrix_size / ncv)
+            if args.nprocs > ParameterMaster.get_cores_per_node():
+                args.nprocs = args.nprocs - args.nprocs % ParameterMaster.get_cores_per_node() # avoid asking for incomplete nodes
+                args.nprocs = min(args.nprocs, ParameterMaster.get_cores_per_node() * 3)
+        else:
+            args.nprocs = ParameterMaster.get_cores_per_node()
+
         args.nodes = ParameterMaster.compute_nodes(args.nprocs)
         if (args.nodes < 1):
             print("Error: nodes < 1")
