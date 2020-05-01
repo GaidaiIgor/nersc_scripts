@@ -71,9 +71,13 @@ def main():
     ncv_mult = 1.5
     mpd_mult = 0.5
 
+    basis_J = config.get_basis_j()
+    basis_K = config.get_basis_k()
+    overlaps_rovib = 1 if basis_J == J and basis_K == args.K else 0 # enable rovibrational coupling for overlaps only if basis J/K coincide with the requested J/K
+
     folder_names = [["K_{0}"], ["even", "odd"], ["basis", "overlaps", "diagonalization", "properties"]]
-    folder_params = [["K = {0}"], ["symmetry = 0", "symmetry = 1"], ["mode = basis", "mode = overlaps\nrovib_coupling = 1", "mode = diagonalization\nrovib_coupling = 0\nmpd = " +
-        str(int(num_states_base * mpd_mult)), "mode = properties\nrovib_coupling = 0"]]
+    folder_params = [["K = {0}"], ["symmetry = 0", "symmetry = 1"], ["mode = basis", "mode = overlaps\nrovib_coupling = " + str(overlaps_rovib), 
+        "mode = diagonalization\nrovib_coupling = 0\nmpd = " + str(int(num_states_base * mpd_mult)), "mode = properties\nrovib_coupling = 0"]]
 
     folder_names_cor = [["K_all"], ["parity_0", "parity_1"], ["even", "odd"], ["diagonalization", "properties"]]
     folder_params_cor = [["K = all\nrovib_coupling = 1"], ["parity = 0\nnum_states = " + str(num_states_p0) + "\nmpd = " + str(int(num_states_p0 * mpd_mult)), 

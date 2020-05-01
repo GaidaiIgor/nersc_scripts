@@ -59,8 +59,14 @@ class SpectrumConfig:
         else:
             return "-1"
 
+    def get_basis_j(self) -> int:
+        if self.get_fix_basis_jk() == 1:
+            return int(self.params["basis_J"])
+        else:
+            return -1
+
     def get_basis_k(self) -> int:
-        if "fix_basis_jk" in self.params:
+        if self.get_fix_basis_jk() == 1:
             return int(self.params["basis_K"])
         else:
             return -1
