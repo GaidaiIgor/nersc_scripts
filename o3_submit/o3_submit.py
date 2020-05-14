@@ -15,7 +15,7 @@ from SpectrumConfig import SpectrumConfig
 
 class SubmissionScript:
     def __init__(self, filesystem: str, qos: str, nodes: str, time: str, job_name: str, out_name: str, node_type: str,
-            n_procs: str, cores_per_proc: str, program_location: str, prg_name: str, prg_out_file_name: str):
+            n_procs: str, cores_per_proc: str, program_location: str, prg_name: str, prg_out_file_name: str, time_file_name: str):
         self.filesystem = filesystem
         self.qos = qos
         self.nodes = nodes
@@ -28,6 +28,7 @@ class SubmissionScript:
         self.program_location = program_location
         self.prg_name = prg_name
         self.prg_out_file_name = prg_out_file_name
+        self.time_file_name = time_file_name
         self.script_name = path.splitext(self.out_name)[0] + ".sbatch"
 
     @classmethod
@@ -39,7 +40,7 @@ class SubmissionScript:
 
         cores_per_proc = str(int(ParameterMaster.get_cores_per_node() * args.nodes / args.nprocs) * ParameterMaster.get_threads_per_core())
         return cls(args.filesystem, args.qos, nodes, time, args.jobname, args.outname, ParameterMaster.nodes_type, 
-                n_procs, cores_per_proc, args.program_location, args.prg_name, args.prg_out_file_name)
+                n_procs, cores_per_proc, args.program_location, args.prg_name, args.prg_out_file_name, args.time_file_name)
 
     def write(self):
         filesystem_line = "#SBATCH -L SCRATCH\n" if self.filesystem == "scratch" else ""
@@ -64,7 +65,9 @@ class SubmissionScript:
                   + "\n"
                   + "date\n"
                   + "echo $SLURM_JOB_ID\n"
-                  + "srun -n " + self.n_procs + " -c " + self.cores_per_proc + " --cpu_bind=cores time -ao time.out " + self.prg_name + " > " + self.prg_out_file_name)
+                  + "rm -f " + self.time_file_name + "\n"
+                  + "srun -n " + self.n_procs + " -c " + self.cores_per_proc + " --cpu_bind=cores time -ao " + self.time_file_name + " " 
+                  + path.join(self.program_location, self.prg_name) + " > " + self.prg_out_file_name + "\n")
         with open(self.script_name, "w") as output:
             output.write(script)
 
@@ -373,6 +376,7 @@ def parse_command_line_args() -> argparse.Namespace:
     parser.add_argument("-jn", "--jobname", help="Job name")
     parser.add_argument("-on", "--outname", help="Slurm output file name")
     parser.add_argument("-pon", "--prg-out-file-name", default="prg.out", help="Name of a separate file with program output only")
+    parser.add_argument("-tfn", "--time-file-name", default="time.out", help="Name of a separate file with time output only")
     parser.add_argument("-go", "--gen-only", action="store_true", help="Generate sbatch without submission")
     parser.add_argument("-ht", "--hyperthreading", dest="hyperthreading", action="store_true",
                         help="Specify to enable hyperthreading")
@@ -445,11 +449,6 @@ def resolve_defaults(args: argparse.Namespace):
         if args.prg_name == "pesprint":
             ParameterMaster.set_pesprint_params(args.config, args)
 
-    if args.qos is None:
-        args.qos = "debug"
-        if args.time > 0.5 or args.nodes > ParameterMaster.get_max_debug_nodes():
-            args.qos = "regular"
-
     if args.jobname is None:
         args.jobname = ParameterMaster.generate_job_name(args.config)
     if args.outname is None:
@@ -473,6 +472,12 @@ def resolve_defaults(args: argparse.Namespace):
         args.procs_mult = 1 if args.nodes_mult > 1 else args.nodes_mult
     if args.nodes_mult is None and args.procs_mult is not None:
         args.nodes_mult = args.procs_mult if args.procs_mult > 1 else 1
+
+    if args.qos is None:
+        args.qos = "debug"
+        if args.time > 0.5 or args.nodes > ParameterMaster.get_max_debug_nodes():
+            args.qos = "regular"
+
 
 
 def postprocess_args(args: argparse.Namespace):
