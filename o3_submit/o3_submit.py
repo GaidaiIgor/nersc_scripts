@@ -473,16 +473,15 @@ def resolve_defaults(args: argparse.Namespace):
     if args.nodes_mult is None and args.procs_mult is not None:
         args.nodes_mult = args.procs_mult if args.procs_mult > 1 else 1
 
-    if args.qos is None:
-        args.qos = "debug"
-        if args.time > 0.5 or args.nodes > ParameterMaster.get_max_debug_nodes():
-            args.qos = "regular"
-
-
 
 def postprocess_args(args: argparse.Namespace):
     args.nprocs = math.ceil(args.nprocs * args.procs_mult)
     args.nodes = math.ceil(args.nodes * args.nodes_mult)
+
+    if args.qos is None:
+        args.qos = "debug"
+        if args.time > 0.5 or args.nodes > ParameterMaster.get_max_debug_nodes():
+            args.qos = "regular"
 
 
 def main():
