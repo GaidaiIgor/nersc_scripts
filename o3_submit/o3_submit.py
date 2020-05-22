@@ -15,7 +15,7 @@ from SpectrumConfig import SpectrumConfig
 
 class SubmissionScript:
     def __init__(self, filesystem: str, qos: str, nodes: str, time: str, job_name: str, out_name: str, node_type: str,
-            n_procs: str, cores_per_proc: str, program_location: str, prg_name: str, prg_out_file_name: str, time_file_name: str):
+            n_procs: str, cores_per_proc: str, program_location: str, program_name: str, program_out_file_name: str, time_file_name: str, sbcast: bool):
         self.filesystem = filesystem
         self.qos = qos
         self.nodes = nodes
@@ -26,9 +26,10 @@ class SubmissionScript:
         self.n_procs = n_procs
         self.cores_per_proc = cores_per_proc
         self.program_location = program_location
-        self.prg_name = prg_name
-        self.prg_out_file_name = prg_out_file_name
+        self.program_name = program_name
+        self.program_out_file_name = program_out_file_name
         self.time_file_name = time_file_name
+        self.sbcast = sbcast
         self.script_name = path.splitext(self.out_name)[0] + ".sbatch"
 
     @classmethod
@@ -40,9 +41,13 @@ class SubmissionScript:
 
         cores_per_proc = str(int(ParameterMaster.get_cores_per_node() * args.nodes / args.nprocs) * ParameterMaster.get_threads_per_core())
         return cls(args.filesystem, args.qos, nodes, time, args.jobname, args.outname, ParameterMaster.nodes_type, 
-                n_procs, cores_per_proc, args.program_location, args.prg_name, args.prg_out_file_name, args.time_file_name)
+                n_procs, cores_per_proc, args.program_location, args.program_name, args.program_out_file_name, args.time_file_name, args.sbcast)
 
     def write(self):
+        program_path = path.join(self.program_location, self.program_name)
+        tmp_program_path = path.join("/tmp", self.program_name)
+        call_location = tmp_program_path if self.sbcast else program_path
+
         filesystem_line = "#SBATCH -L SCRATCH\n" if self.filesystem == "scratch" else ""
         qos_line = "#SBATCH -q " + self.qos + "\n" if self.qos is not None else ""
         min_time_line = "#SBATCH --time-min " + str(min(int(self.time), 240)) + "\n" if self.qos == "overrun" else ""
@@ -52,6 +57,7 @@ class SubmissionScript:
         job_line = "#SBATCH -J " + self.job_name + "\n" if self.job_name is not None else ""
         out_line = "#SBATCH -o " + self.out_name + "\n" if self.out_name is not None else ""
         node_type_line = "#SBATCH -C " + self.node_type + "\n"
+        sbcast_line = "sbcast --compress=lz4 " + program_path + " " + tmp_program_path + "\n" if self.sbcast else ""
         script = ("#!/bin/bash\n"
                   + filesystem_line
                   + qos_line
@@ -66,8 +72,9 @@ class SubmissionScript:
                   + "date\n"
                   + "echo $SLURM_JOB_ID\n"
                   + "rm -f " + self.time_file_name + "\n"
+                  + sbcast_line
                   + "srun -n " + self.n_procs + " -c " + self.cores_per_proc + " --cpu_bind=cores time -ao " + self.time_file_name + " " 
-                  + path.join(self.program_location, self.prg_name) + " > " + self.prg_out_file_name + "\n")
+                  + call_location + " > " + self.program_out_file_name + "\n")
         with open(self.script_name, "w") as output:
             output.write(script)
 
@@ -367,7 +374,7 @@ class ParameterMaster:
 
 def parse_command_line_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generates sbatch input file for ozone calculations")
-    parser.add_argument("prg_name", metavar="program name", nargs="?", help="Program name")
+    parser.add_argument("program_name", metavar="program name", nargs="?", help="Program name")
     parser.add_argument("-c", "--config", help="Path to configuration file")
     parser.add_argument("-q", "--qos", help="Job QoS")
     parser.add_argument("-t", "--time", type=float, default=0.5, help="Requested job time")
@@ -375,7 +382,7 @@ def parse_command_line_args() -> argparse.Namespace:
     parser.add_argument("-np", "--nprocs", type=int, help="Desired number of processes")
     parser.add_argument("-jn", "--jobname", help="Job name")
     parser.add_argument("-on", "--outname", help="Slurm output file name")
-    parser.add_argument("-pon", "--prg-out-file-name", default="prg.out", help="Name of a separate file with program output only")
+    parser.add_argument("-pon", "--program-out-file-name", default="prg.out", help="Name of a separate file with program output only")
     parser.add_argument("-tfn", "--time-file-name", default="time.out", help="Name of a separate file with time output only")
     parser.add_argument("-go", "--gen-only", action="store_true", help="Generate sbatch without submission")
     parser.add_argument("-ht", "--hyperthreading", dest="hyperthreading", action="store_true",
@@ -385,6 +392,7 @@ def parse_command_line_args() -> argparse.Namespace:
     parser.add_argument("-v", "--verbose", action="store_true", help="Makes the script to print additional information")
     parser.add_argument("-pl", "--program-location", help="Explicit path to program folder")
     parser.add_argument("-hn", "--host-name", help="Explicit host name, used to determine node configuration")
+    parser.add_argument("-sbc", "--sbcast", action="store_true", help="Specify to use sbcast (helps to speed up jobs with large number (1000+) of MPI tasks)")
 
     #  parser.add_argument("-bn", "--build-name", default="cori", help="Specifies name of the folder with build")
     parser.add_argument("-fs", "--filesystem", default="none", help="Controls filesystem requirements")
@@ -433,8 +441,8 @@ def configure_parameter_master(args: argparse.Namespace):
 
 def resolve_defaults(args: argparse.Namespace):
     # Some defaults depend on other values so they are set separately
-    if args.prg_name is None:
-        args.prg_name = ParameterMaster.guess_program_name()
+    if args.program_name is None:
+        args.program_name = ParameterMaster.guess_program_name()
     if args.config is None:
         args.config = "spectrumsdt.config"
     args.config = path.abspath(args.config)
@@ -444,9 +452,9 @@ def resolve_defaults(args: argparse.Namespace):
     if args.nprocs is None and args.nodes is not None:
         args.nprocs = ParameterMaster.compute_cores(args.nodes)
     if args.nprocs is None and args.nodes is None:
-        if args.prg_name == "spectrumsdt":
+        if args.program_name == "spectrumsdt":
             ParameterMaster.set_spectrumsdt_params(args.config, args)
-        if args.prg_name == "pesprint":
+        if args.program_name == "pesprint":
             ParameterMaster.set_pesprint_params(args.config, args)
 
     if args.jobname is None:

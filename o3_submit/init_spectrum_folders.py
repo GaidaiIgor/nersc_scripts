@@ -73,7 +73,8 @@ def main():
 
     basis_J = config.get_basis_j()
     basis_K = config.get_basis_k()
-    overlaps_rovib = 1 if basis_J == J and basis_K == args.K else 0 # enable rovibrational coupling for overlaps only if basis J/K coincide with the requested J/K
+    requested_K = int(args.K)
+    overlaps_rovib = 1 if basis_J == J and basis_K == requested_K else 0 # enable rovibrational coupling for overlaps only if basis J/K coincide with the requested J/K
 
     folder_names = [["K_{0}"], ["even", "odd"], ["basis", "overlaps", "diagonalization", "properties"]]
     folder_params = [["K = {0}"], ["symmetry = 0", "symmetry = 1"], ["mode = basis", "mode = overlaps\nrovib_coupling = " + str(overlaps_rovib), 
