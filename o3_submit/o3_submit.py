@@ -57,6 +57,7 @@ class SubmissionScript:
         job_line = "#SBATCH -J " + self.job_name + "\n" if self.job_name is not None else ""
         out_line = "#SBATCH -o " + self.out_name + "\n" if self.out_name is not None else ""
         node_type_line = "#SBATCH -C " + self.node_type + "\n"
+        export_pmi_line = "export PMI_MMAP_SYNC_WAIT_TIME=300\n" if self.sbcast else ""
         sbcast_line = "sbcast --compress=lz4 " + program_path + " " + tmp_program_path + "\n" if self.sbcast else ""
         script = ("#!/bin/bash\n"
                   + filesystem_line
@@ -72,6 +73,7 @@ class SubmissionScript:
                   + "date\n"
                   + "echo $SLURM_JOB_ID\n"
                   + "rm -f " + self.time_file_name + "\n"
+                  + export_pmi_line
                   + sbcast_line
                   + "srun -n " + self.n_procs + " -c " + self.cores_per_proc + " --cpu_bind=cores time -ao " + self.time_file_name + " " 
                   + call_location + " > " + self.program_out_file_name + "\n")

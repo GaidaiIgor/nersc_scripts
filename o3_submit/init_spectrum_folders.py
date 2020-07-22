@@ -69,7 +69,7 @@ def main():
     num_states_p0 = num_states_base * (J + 1 - J % 2)
     num_states_p1 = num_states_base * (J + 1 - (J + 1) % 2)
     ncv_mult = 1.5
-    mpd_mult = 0.5
+    mpd_mult = 600 / 2500
 
     basis_J = config.get_basis_j()
     basis_K = config.get_basis_k()

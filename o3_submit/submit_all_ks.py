@@ -18,6 +18,8 @@ def parse_command_line_args() -> argparse.Namespace:
     parser.add_argument("-o", "--options", default="", help="Custom submission parameters for a stage")
     parser.add_argument("-s", "--sym", choices=["even", "odd", "all"], default="all", help="Symmetry")
     parser.add_argument("-nc", "--no-cor", action="store_true", help="Disable coriolis coupling for diagonalization")
+    parser.add_argument("-ao", "--allowed-only", action="store_true", help="Send only allowed combinations of parity and symmetry")
+    parser.add_argument("-p", "--parity", type=int, choices=[0, 1], help="Send only specified parity")
     args = parser.parse_args()
     return args
 
@@ -30,12 +32,17 @@ def generate_paths(base_path: str, folder_names: List[List[str]]) -> List[str]:
 
 
 def main():
-    folder_names = [["K_{0}"], ["even", "odd"]]
-    folder_names_coriolis = [["K_all"], ["parity_{0}"], ["even", "odd"]]
-
     args = parse_command_line_args()
-    folder_names = folder_names + [[args.stage]]
-    folder_names_coriolis = folder_names_coriolis + [[args.stage]]
+
+    if args.sym == "all":
+        symmetries = ["even", "odd"]
+    elif args.sym == "even":
+        symmetries = ["even"]
+    else:
+        symmetries = ["odd"]
+
+    folder_names = [["K_{0}"], symmetries, [args.stage]]
+    folder_names_coriolis = [["K_all"], ["parity_{0}"], symmetries, [args.stage]]
 
     config_path = path.abspath(args.config)
     config = SpectrumConfig(config_path)
@@ -44,10 +51,17 @@ def main():
     base_path = os.getcwd()
     target_folders = []
     if (args.stage == "diagonalization" or args.stage == "properties") and not args.no_cor:
-        for i in range(min(J + 1, 2)):
+        if args.parity is None:
+            parity_range = range(min(J + 1, 2))
+        else:
+            parity_range = [args.parity]
+
+        for p in parity_range:
             current_folder_names = copy.deepcopy(folder_names_coriolis)
-            current_folder_names[1][0] = current_folder_names[1][0].format(i)
+            current_folder_names[1][0] = current_folder_names[1][0].format(p)
             current_target_folders = generate_paths(base_path, current_folder_names)
+            if args.allowed_only:
+                current_target_folders = [current_target_folders[p]]
             target_folders = target_folders + current_target_folders
     else:
         for i in range(J + 1):
@@ -57,17 +71,9 @@ def main():
             target_folders = target_folders + current_target_folders
 
     call_command = "o3_submit.py " + args.options
-    current_sym = 0 if args.sym == "even" else 1
-    for i in range(0, len(target_folders), 2):
-        if args.sym == "all":
-            os.chdir(target_folders[i])
-            subprocess.check_call(call_command, shell=True)
-            os.chdir(target_folders[i + 1])
-            subprocess.check_call(call_command, shell=True)
-        else:
-            os.chdir(target_folders[i + current_sym])
-            subprocess.check_call(call_command, shell=True)
-            current_sym = 1 - current_sym
+    for i in range(len(target_folders)):
+        os.chdir(target_folders[i])
+        subprocess.check_call(call_command, shell=True)
 
 
 main()
