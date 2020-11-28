@@ -4,15 +4,15 @@ import pathlib
 from typing import List, TextIO
 
 import sys
-sys.path.append("/home/installbot/SpectrumSDT/scripts")
+sys.path.append("/global/u2/g/gaidai/SpectrumSDT_gfortran/scripts/")
 from SpectrumSDTConfig import SpectrumSDTConfig
 
 
 def get_ozone_molecule(mass: str) -> str:
     """ Returns 686 or 868 based on specified mass string """
-    if mass == "o16, o18, o16":
+    if mass == "O16, O18, O16":
         return "686"
-    elif mass == "o18, o16, o18":
+    elif mass == "O18, O16, O18":
         return "868"
     else:
         raise Exception("Unknwon molecule")
