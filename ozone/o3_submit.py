@@ -10,7 +10,9 @@ import itertools
 import subprocess
 from typing import List
 
-from SpectrumConfig import SpectrumConfig
+import sys
+sys.path.append("/global/u2/g/gaidai/SpectrumSDT_gfortran/scripts")
+from SpectrumSDTConfig import SpectrumSDTConfig
 
 
 class SubmissionScript:
@@ -87,38 +89,31 @@ class SubmissionScript:
 class ParameterMaster:
     """ Resolves implicit parameters """
     hyperthreading = True
-    #  nodes_mult = 1
-
     host_name = os.environ["HOST"][:-2]
-    job_name_separator = "ozone/"
-
-    grid_file_names = ["grid1.dat", "grid2.dat", "grid3.dat"]
-    pes_file_name = "potvib.dat"
-
-    basis_results_folder = "basis"
-    basis_1d_file = "nvec1.dat"
+    job_name_separator = "gaidai/"
+    grid_file_names = ["grid_rho.dat", "grid_theta.dat", "grid_phi.dat"]
+    pes_file_name = "pes.out"
+    basis_results_folder = "out_basis"
     basis_2d_file = "nvec2.dat"
-
-    overlap_results_folder = "overlap0"
-
-    diagonalization_results_folder = "3dsdt"
-    spectrum_filename = "spec.out"
+    overlap_results_folder = "out_overlaps"
+    eigencalc_results_folder = "out_eigencalc"
+    spectrum_filename = "states.fwc"
 
     @staticmethod
-    def get_grid_path(config: SpectrumConfig, grid_num: int) -> str:
-        grid_folder = config.get_grid_folder_path()
+    def get_grid_path(config: SpectrumSDTConfig, grid_num: int) -> str:
+        grid_folder = config.get_grid_path()
         grid_file_name = ParameterMaster.grid_file_names[grid_num - 1]
         return path.join(grid_folder, grid_file_name)
 
     @staticmethod
-    def get_grid_points_num(config: SpectrumConfig, grid_num: int) -> int:
+    def get_grid_points_num(config: SpectrumSDTConfig, grid_num: int) -> int:
         grid_path = ParameterMaster.get_grid_path(config, grid_num)
         with open(grid_path, "r") as grid_file:
             return int(grid_file.readline().split()[0])  # first number on first line
 
     @staticmethod
-    def get_pes_path(config: SpectrumConfig) -> str:
-        grid_folder = config.get_grid_folder_path()
+    def get_pes_path(config: SpectrumSDTConfig) -> str:
+        grid_folder = config.get_grid_path()
         return path.join(grid_folder, ParameterMaster.pes_file_name)
 
     @staticmethod
@@ -144,10 +139,6 @@ class ParameterMaster:
         return path.join(ParameterMaster.get_basis_folder(root_path, K, sym), ParameterMaster.basis_results_folder)
 
     @staticmethod
-    def get_basis_1d_path(root_path: str, K: int, sym: int) -> str:
-        return path.join(ParameterMaster.get_basis_results_folder(root_path, K, sym), ParameterMaster.basis_1d_file)
-
-    @staticmethod
     def get_basis_2d_path(root_path: str, K: int, sym: int) -> str:
         return path.join(ParameterMaster.get_basis_results_folder(root_path, K, sym), ParameterMaster.basis_2d_file)
 
@@ -160,16 +151,16 @@ class ParameterMaster:
         return path.join(ParameterMaster.get_overlaps_folder(root_path, K, sym), ParameterMaster.overlap_results_folder)
 
     @staticmethod
-    def get_diagonalization_folder(root_path: str, K: int, sym: int, parity: int = None) -> str:
-        return path.join(ParameterMaster.get_sym_folder(root_path, K, sym, parity), "diagonalization")
+    def get_eigencalc_folder(root_path: str, K: int, sym: int, parity: int = None) -> str:
+        return path.join(ParameterMaster.get_sym_folder(root_path, K, sym, parity), "eigencalc")
 
     @staticmethod
-    def get_diagonalization_results_folder(root_path: str, K: int, sym: int, parity: int = None) -> str:
-        return path.join(ParameterMaster.get_diagonalization_folder(root_path, K, sym, parity), ParameterMaster.diagonalization_results_folder)
+    def get_eigencalc_results_folder(root_path: str, K: int, sym: int, parity: int = None) -> str:
+        return path.join(ParameterMaster.get_eigencalc_folder(root_path, K, sym, parity), ParameterMaster.eigencalc_results_folder)
 
     @staticmethod
     def get_spectrum_path(root_path: str, K: int, sym: int, parity: int = None) -> str:
-        return path.join(ParameterMaster.get_diagonalization_results_folder(root_path, K, sym, parity), ParameterMaster.spectrum_filename)
+        return path.join(ParameterMaster.get_eigencalc_results_folder(root_path, K, sym, parity), ParameterMaster.spectrum_filename)
 
     @staticmethod
     def set_spectrumsdt_params(config_path: str, args: argparse.Namespace):
@@ -177,19 +168,19 @@ class ParameterMaster:
         :param config_path: Path to spectrumsdt config file
         :param args: parsed input arguments """
 
-        config = SpectrumConfig(config_path)
-        launch_mode = config.get_launch_mode()
-        if launch_mode == "basis":
+        config = SpectrumSDTConfig(config_path)
+        stage = config.get_stage()
+        if stage == "basis":
             ParameterMaster.set_basis_params(config, args)
-        elif launch_mode == "overlaps":
+        elif stage == "overlaps":
             ParameterMaster.set_overlap_params(config, args)
-        elif launch_mode == "diagonalization":
-            ParameterMaster.set_diagonalization_params(config, args)
-        elif launch_mode == "properties":
+        elif stage == "eigencalc":
+            ParameterMaster.set_eigencalc_params(config, args)
+        elif stage == "properties":
             ParameterMaster.set_properties_params(config, args)
 
     @staticmethod
-    def set_basis_params(config: SpectrumConfig, args: argparse.Namespace):
+    def set_basis_params(config: SpectrumSDTConfig, args: argparse.Namespace):
         pes_path = ParameterMaster.get_pes_path(config)
         # make sure pesprint worked out ok
         assert path.isfile(pes_path) and path.getsize(pes_path) > 0, "pesprint is not completed"
@@ -199,94 +190,26 @@ class ParameterMaster:
         args.nodes = ParameterMaster.compute_nodes(args.nprocs)
 
     @staticmethod
-    def set_overlap_params(config: SpectrumConfig, args: argparse.Namespace):
-        root_path = config.get_root_path()
-        K = config.get_ks()[0]
-        sym = config.get_symmetry()
-        basis_1d_path = ParameterMaster.get_basis_1d_path(root_path, K, sym)
-        basis_2d_path = ParameterMaster.get_basis_2d_path(root_path, K, sym)
-
-        # make sure basis worked out ok
-        assert path.isfile(basis_2d_path), "basis is not completed, path: " + basis_2d_path
-
-        # set up parameters
-        basis_2d_dist = ParameterMaster.read_2d_basis_dist(basis_2d_path)
-        # sizes of all off-diagonal blocks in hamiltonian (in elements)
-        block_sizes = list(map(lambda x: x[0] * x[1], itertools.combinations(basis_2d_dist, 2)))
-        # we assume all blocks have average size
-        average_block_size = sum(block_sizes) / len(block_sizes)
-        # 2D array of number of basis functions for each pair of theta/rho
-        basis_1d_dist = ParameterMaster.read_1d_basis_dist(basis_1d_path)
-        # total number of 1d basis functions in each rho slice
-        basis_sizes_1d = [sum(col) for col in zip(*basis_1d_dist)]
-        average_basis_size = sum(basis_sizes_1d) / len(basis_sizes_1d)
-        average_block_work = average_block_size * average_basis_size
-
-        efficiency_level = 0.725  # by analyzing efficiency charts
-        total_work = average_block_work * len(block_sizes)
-        efficiency_derivative = -66.6881847337451 * total_work ** -0.357097330357440  # using fitting of job times
-        args.nodes = round((efficiency_level - 1) / efficiency_derivative)
-        # above coefficients are adjusted for edison so this is an ad hoc adjustment for cori
-        args.nodes = round(args.nodes * 0.75)
+    def set_overlap_params(config: SpectrumSDTConfig, args: argparse.Namespace):
+        args.nodes = 10
         args.nprocs = ParameterMaster.compute_cores(args.nodes)
 
     @staticmethod
-    def set_diagonalization_params(config: SpectrumConfig, args: argparse.Namespace):
-        fix_basis_jk = config.get_fix_basis_jk()
-        basis_K = config.get_basis_k() if fix_basis_jk == 1 else -1
-        root_path = config.get_basis_root_path() if fix_basis_jk == 1 else config.get_root_path()
-        ks = config.get_ks()
-        k_start = ks[0]
-        k_end = ks[1]
-        sym = (config.get_symmetry() + k_start) % 2
-
-        matrix_size = 0
-        for k in range(k_start, k_end + 1):
-            k_load = basis_K if fix_basis_jk == 1 else k
-            basis_2d_path = ParameterMaster.get_basis_2d_path(root_path, k_load, sym)
-            basis_2d_dist = ParameterMaster.read_2d_basis_dist(basis_2d_path)
-            matrix_size += sum(basis_2d_dist)
-            sym = 1 - sym
-
-        # set up parameters
-        if config.get_solver() == "parpack":
-            ncv = config.get_ncv()
-            args.nprocs = int(matrix_size / ncv)
-            if args.nprocs > ParameterMaster.get_cores_per_node():
-                args.nprocs = args.nprocs - args.nprocs % ParameterMaster.get_cores_per_node() # avoid asking for incomplete nodes
-                args.nprocs = min(args.nprocs, ParameterMaster.get_cores_per_node() * 3)
-        else:
-            args.nprocs = ParameterMaster.get_cores_per_node()
-
-        args.nodes = ParameterMaster.compute_nodes(args.nprocs)
-        if (args.nodes < 1):
-            print("Error: nodes < 1")
-            print("Matrix size: {0}".format(matrix_size))
-            print("ncv: {0}".format(ncv))
-            exit()
+    def set_eigencalc_params(config: SpectrumSDTConfig, args: argparse.Namespace):
+        args.nodes = 1
+        args.nprocs = ParameterMaster.compute_cores(args.nodes)
 
     @staticmethod
-    def set_properties_params(config: SpectrumConfig, args: argparse.Namespace):
-        #  root_path = config.get_root_path()
-        #  K = config.get_ks()[0]
-        #  sym = config.get_symmetry()
-        #  if K == -1:
-        #      parity = config.get_parity()
-        #      spectrum_path = ParameterMaster.get_spectrum_path(root_path, K, sym, parity)
-        #  else:
-        #      spectrum_path = ParameterMaster.get_spectrum_path(root_path, K, sym)
-        #  # make sure diagonalization worked out ok
-        #  assert path.isfile(spectrum_path), "diagonalization is not completed, file not found: " + spectrum_path
-
+    def set_properties_params(config: SpectrumSDTConfig, args: argparse.Namespace):
         # set up parameters
         args.nprocs = config.get_number_of_states()
         args.nodes = ParameterMaster.compute_nodes(args.nprocs)
 
     @staticmethod
-    def set_wfs_print_params(config: SpectrumConfig, args: argparse.Namespace):
-        diag_output_path = ParameterMaster.get_diagonalization_output_path(config)
-        # make sure diagonalization worked out ok
-        assert path.isfile(diag_output_path), "diagonalization is not completed"
+    def set_wfs_print_params(config: SpectrumSDTConfig, args: argparse.Namespace):
+        diag_output_path = ParameterMaster.get_eigencalc_output_path(config)
+        # make sure eigencalc worked out ok
+        assert path.isfile(diag_output_path), "eigencalc is not completed"
 
         # set up parameters
         args.nprocs = config.get_number_of_wfs_to_print()
@@ -313,7 +236,7 @@ class ParameterMaster:
 
     @staticmethod
     def set_pesprint_params(config_path: str, args: argparse.Namespace):
-        config = SpectrumConfig(config_path)
+        config = SpectrumSDTConfig(config_path)
         grid1_points = ParameterMaster.get_grid_points_num(config, 1)
         grid2_points = ParameterMaster.get_grid_points_num(config, 2)
         grid3_points = ParameterMaster.get_grid_points_num(config, 3)
