@@ -140,14 +140,26 @@ def write_wf_sections(file_name: str, molecule: str, barrier_positions: List[flo
         file.write("  }\n")
         file.write("\n")
         file.write("  Infinity = {\n")
-        file.write("    rho = 11 .. end\n".format(barrier_positions[2]))
+        file.write("    rho = 11 .. end\n")
+        file.write("  }\n")
+        file.write("\n")
+        file.write("  Gamma B = {\n")
+        file.write("    phi = 0 .. 60\n")
+        file.write("    stat = gamma\n")
+        file.write("  }\n")
+        file.write("\n")
+        file.write("  Gamma A = {\n")
+        file.write("    phi = 60 .. 180\n")
+        file.write("    stat = gamma\n")
         file.write("  }\n")
 
-        for K in range(Ks[0], Ks[1] + 1):
-            file.write("\n")
-            file.write("  K{} = {{\n".format(K))
-            file.write("    K = {} .. {}\n".format(K, K))
-            file.write("  }\n")
+        if Ks[0] != Ks[1]:
+            for K in range(Ks[0], Ks[1] + 1):
+                file.write("\n")
+                file.write("  K{} = {{\n".format(K))
+                file.write("    K = {} .. {}\n".format(K, K))
+                file.write("  }\n")
+
         file.write("}\n")
 
 
