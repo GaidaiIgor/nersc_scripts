@@ -191,7 +191,7 @@ class ParameterMaster:
 
     @staticmethod
     def set_overlap_params(config: SpectrumSDTConfig, args: argparse.Namespace):
-        args.nodes = 10
+        args.nodes = 1
         args.nprocs = ParameterMaster.compute_cores(args.nodes)
 
     @staticmethod
@@ -236,12 +236,7 @@ class ParameterMaster:
 
     @staticmethod
     def set_pesprint_params(config_path: str, args: argparse.Namespace):
-        config = SpectrumSDTConfig(config_path)
-        grid1_points = ParameterMaster.get_grid_points_num(config, 1)
-        grid2_points = ParameterMaster.get_grid_points_num(config, 2)
-        grid3_points = ParameterMaster.get_grid_points_num(config, 3)
-        total_points = grid1_points * grid2_points * grid3_points
-        args.nodes = min(int(total_points / ParameterMaster.pes_points_per_node), ParameterMaster.pesprint_max_nodes)
+        args.nodes = 1
         args.nprocs = ParameterMaster.compute_cores(args.nodes)
 
     @staticmethod
@@ -289,9 +284,7 @@ class ParameterMaster:
 
     @staticmethod
     def guess_program_name() -> str:
-        if path.isfile(ParameterMaster.grid_file_names[0]):
-            return "pesprint"
-        elif path.isfile("spectrumsdt.config"):
+        if path.isfile("spectrumsdt.config"):
             return "spectrumsdt"
         else:
             raise FileNotFoundError("Could not determine program name automatically, specify program name manually")
