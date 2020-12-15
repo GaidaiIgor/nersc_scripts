@@ -109,7 +109,7 @@ class ParameterMaster:
     def get_grid_points_num(config: SpectrumSDTConfig, grid_num: int) -> int:
         grid_path = ParameterMaster.get_grid_path(config, grid_num)
         with open(grid_path, "r") as grid_file:
-            return int(grid_file.readline().split()[0])  # first number on first line
+            return int(grid_file.readline().split()[3])  # fourth number on first line
 
     @staticmethod
     def get_pes_path(config: SpectrumSDTConfig) -> str:
