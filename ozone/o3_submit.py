@@ -287,7 +287,7 @@ class ParameterMaster:
 
 def parse_command_line_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generates sbatch input file for ozone calculations")
-    parser.add_argument("-c", "--config", help="Path to configuration file")
+    parser.add_argument("-co", "--config", help="Path to configuration file")
     parser.add_argument("-q", "--qos", help="Job QoS")
     parser.add_argument("-t", "--time", type=float, default=0.5, help="Requested job time")
     parser.add_argument("-n", "--nodes", type=int, help="Desired number of nodes")
@@ -307,7 +307,7 @@ def parse_command_line_args() -> argparse.Namespace:
     parser.add_argument("-sbc", "--sbcast", action="store_true", help="Specify to use sbcast (helps to speed up jobs with large number (1000+) of MPI tasks)")
     #  parser.add_argument("-bn", "--build-name", default="cori", help="Specifies name of the folder with build")
     parser.add_argument("-fs", "--filesystem", default="none", help="Controls filesystem requirements")
-    parser.add_argument("-nt", "--node-type", default="haswell", choices=["haswell", "amd"], help="Node type")
+    parser.add_argument("-c", "--node-type", default="haswell", choices=["haswell", "amd"], help="Node type")
 
     args = parser.parse_args()
     return args
