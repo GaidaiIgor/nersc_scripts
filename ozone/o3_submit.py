@@ -17,7 +17,8 @@ from SpectrumSDTConfig import SpectrumSDTConfig
 
 class SubmissionScript:
     def __init__(self, filesystem: str, qos: str, nodes: str, time: str, job_name: str, out_name: str, node_type: str,
-            n_procs: str, cores_per_proc: str, program_location: str, program_name: str, program_out_file_name: str, time_file_name: str, sbcast: bool):
+            n_procs: str, cores_per_proc: str, program_location: str, program_out_file_name: str, time_file_name: str, sbcast: bool):
+        self.program_name = "spectrumsdt"
         self.filesystem = filesystem
         self.qos = qos
         self.nodes = nodes
@@ -28,7 +29,6 @@ class SubmissionScript:
         self.n_procs = n_procs
         self.cores_per_proc = cores_per_proc
         self.program_location = program_location
-        self.program_name = program_name
         self.program_out_file_name = program_out_file_name
         self.time_file_name = time_file_name
         self.sbcast = sbcast
@@ -43,7 +43,7 @@ class SubmissionScript:
 
         cores_per_proc = str(int(ParameterMaster.get_cores_per_node() * args.nodes / args.nprocs) * ParameterMaster.get_threads_per_core())
         return cls(args.filesystem, args.qos, nodes, time, args.jobname, args.outname, ParameterMaster.nodes_type, 
-                n_procs, cores_per_proc, args.program_location, args.program_name, args.program_out_file_name, args.time_file_name, args.sbcast)
+                n_procs, cores_per_proc, args.program_location, args.program_out_file_name, args.time_file_name, args.sbcast)
 
     def write(self):
         program_path = path.join(self.program_location, self.program_name)
@@ -170,7 +170,9 @@ class ParameterMaster:
 
         config = SpectrumSDTConfig(config_path)
         stage = config.get_stage()
-        if stage == "basis":
+        if stage == "grids":
+            ParameterMaster.set_pesprint_params(config, args)
+        elif stage == "basis":
             ParameterMaster.set_basis_params(config, args)
         elif stage == "overlaps":
             ParameterMaster.set_overlap_params(config, args)
@@ -282,17 +284,9 @@ class ParameterMaster:
         job_name = path.dirname(config_path_parts[1])
         return job_name
 
-    @staticmethod
-    def guess_program_name() -> str:
-        if path.isfile("spectrumsdt.config"):
-            return "spectrumsdt"
-        else:
-            raise FileNotFoundError("Could not determine program name automatically, specify program name manually")
-
 
 def parse_command_line_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generates sbatch input file for ozone calculations")
-    parser.add_argument("program_name", metavar="program name", nargs="?", help="Program name")
     parser.add_argument("-c", "--config", help="Path to configuration file")
     parser.add_argument("-q", "--qos", help="Job QoS")
     parser.add_argument("-t", "--time", type=float, default=0.5, help="Requested job time")
@@ -307,15 +301,13 @@ def parse_command_line_args() -> argparse.Namespace:
                         help="Specify to enable hyperthreading")
     parser.add_argument("-nm", "--node-multiplier", dest="nodes_mult", type=float, help="Multiplier for implicitly computed number of nodes")
     parser.add_argument("-pm", "--procs-multiplier", dest="procs_mult", type=float, help="Multiplier for implicitly computed number of processors")
-    parser.add_argument("-v", "--verbose", action="store_true", help="Makes the script to print additional information")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Makes the script print additional information")
     parser.add_argument("-pl", "--program-location", help="Explicit path to program folder")
     parser.add_argument("-hn", "--host-name", help="Explicit host name, used to determine node configuration")
     parser.add_argument("-sbc", "--sbcast", action="store_true", help="Specify to use sbcast (helps to speed up jobs with large number (1000+) of MPI tasks)")
-
     #  parser.add_argument("-bn", "--build-name", default="cori", help="Specifies name of the folder with build")
     parser.add_argument("-fs", "--filesystem", default="none", help="Controls filesystem requirements")
-    parser.add_argument("-O0", "--no-opt", action="store_true", help="Specify to use non-optimized version of the code")
-    parser.add_argument("-knl", "--knl", dest="haswell", action="store_false", help="Specify to use KNL nodes")
+    parser.add_argument("-nt", "--node-type", default="haswell", choices=["haswell", "amd"], help="Node type")
 
     args = parser.parse_args()
     return args
@@ -326,24 +318,15 @@ def assume_haswell_configuration():
     ParameterMaster.max_shared_cores = 16
     ParameterMaster.max_debug_nodes = 64
     ParameterMaster.threads_per_core = 2
-
-    ParameterMaster.pes_points_per_node = 500000
-    ParameterMaster.pesprint_max_nodes = 20
-    ParameterMaster.overlaps_work_per_core = 6E+7  # abstract units
-    ParameterMaster.overlaps_max_nodes = 100
     ParameterMaster.nodes_type = "haswell"
 
 
-def assume_knl_configuration():
-    ParameterMaster.cores_per_node = 68
-    ParameterMaster.max_debug_nodes = 512
-    ParameterMaster.threads_per_core = 4
-
-    ParameterMaster.pes_points_per_node = 500000
-    ParameterMaster.pesprint_max_nodes = 20
-    ParameterMaster.overlaps_work_per_core = 6E+7  # abstract units
-    ParameterMaster.overlaps_max_nodes = 100
-    ParameterMaster.nodes_type = "knl"
+def assume_amd_configuration():
+    ParameterMaster.cores_per_node = 32
+    ParameterMaster.max_shared_cores = 16
+    ParameterMaster.max_debug_nodes = 64
+    ParameterMaster.threads_per_core = 2
+    ParameterMaster.nodes_type = "amd"
 
 
 def configure_parameter_master(args: argparse.Namespace):
@@ -351,16 +334,17 @@ def configure_parameter_master(args: argparse.Namespace):
     #  ParameterMaster.nodes_mult = args.nodes_mult
     if args.host_name is not None:
         ParameterMaster.host_name = args.host_name
-    if args.haswell:
+
+    if args.node_type == "haswell":
         assume_haswell_configuration()
+    elif args.node_type == "amd":
+        assume_amd_configuration()
     else:
-        assume_knl_configuration()
+        raise Exception("invalid node type")
 
 
 def resolve_defaults(args: argparse.Namespace):
     # Some defaults depend on other values so they are set separately
-    if args.program_name is None:
-        args.program_name = ParameterMaster.guess_program_name()
     if args.config is None:
         args.config = "spectrumsdt.config"
     args.config = path.abspath(args.config)
@@ -370,10 +354,7 @@ def resolve_defaults(args: argparse.Namespace):
     if args.nprocs is None and args.nodes is not None:
         args.nprocs = ParameterMaster.compute_cores(args.nodes)
     if args.nprocs is None and args.nodes is None:
-        if args.program_name == "spectrumsdt":
-            ParameterMaster.set_spectrumsdt_params(args.config, args)
-        if args.program_name == "pesprint":
-            ParameterMaster.set_pesprint_params(args.config, args)
+        ParameterMaster.set_spectrumsdt_params(args.config, args)
 
     if args.jobname is None:
         args.jobname = ParameterMaster.generate_job_name(args.config)
@@ -381,13 +362,7 @@ def resolve_defaults(args: argparse.Namespace):
         args.outname = ParameterMaster.generate_out_name()
 
     if args.program_location is None:
-        if args.no_opt:
-            args.program_location = path.expandvars("$mybin_O0")
-        elif args.haswell:
-            args.program_location = path.expandvars("$mybin")
-        else:
-            args.program_location = path.expandvars("$mybin_knl")
-
+        args.program_location = path.expandvars("$mybin")
         if len(args.program_location) == 0:
             raise "Program location cannot be determined. Specify full path via -pl"
 
