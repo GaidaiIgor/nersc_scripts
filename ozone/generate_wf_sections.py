@@ -4,7 +4,7 @@ import pathlib
 from typing import List, TextIO
 
 import sys
-sys.path.append("/global/u2/g/gaidai/SpectrumSDT_gfortran/scripts/")
+sys.path.append("/global/u2/g/gaidai/SpectrumSDT_ifort/scripts/")
 from SpectrumSDTConfig import SpectrumSDTConfig
 
 
@@ -15,7 +15,7 @@ def get_ozone_molecule(mass: str) -> str:
     elif mass == "O18, O16, O18":
         return "868"
     else:
-        raise Exception("Unknwon molecule")
+        raise Exception("Unknown molecule")
 
 
 def select_interpolating_Js(J: int) -> List[int]:
@@ -108,59 +108,59 @@ def write_wf_sections(file_name: str, molecule: str, barrier_positions: List[flo
     phi_barrier = get_phi_barrier(molecule)
     with open(file_name, "a") as file:
         file.write("\n")
-        file.write("wf_sections = {\n")
-        file.write("  Covalent B = {\n")
+        file.write("wf_sections = (\n")
+        file.write("  Covalent B = (\n")
         file.write("    rho = start .. {:.15f}\n".format(barrier_positions[0]))
         file.write("    phi = 0 .. 60\n")
-        file.write("  }\n")
+        file.write("  )\n")
         file.write("\n")
-        file.write("  Covalent A = {\n")
+        file.write("  Covalent A = (\n")
         file.write("    rho = start .. {:.15f}\n".format(barrier_positions[1]))
         file.write("    phi = 60 .. {}\n".format(phi_barrier))
-        file.write("  }\n")
+        file.write("  )\n")
         file.write("\n")
-        file.write("  Covalent S = {\n")
+        file.write("  Covalent S = (\n")
         file.write("    rho = start .. {:.15f}\n".format(barrier_positions[2]))
         file.write("    phi = {} .. 180\n".format(phi_barrier))
-        file.write("  }\n")
+        file.write("  )\n")
         file.write("\n")
-        file.write("  VdW B = {\n")
+        file.write("  VdW B = (\n")
         file.write("    rho = {:.15f} .. 11\n".format(barrier_positions[0]))
         file.write("    phi = 0 .. 60\n")
-        file.write("  }\n")
+        file.write("  )\n")
         file.write("\n")
-        file.write("  VdW A = {\n")
+        file.write("  VdW A = (\n")
         file.write("    rho = {:.15f} .. 11\n".format(barrier_positions[1]))
         file.write("    phi = 60 .. {}\n".format(phi_barrier))
-        file.write("  }\n")
+        file.write("  )\n")
         file.write("\n")
-        file.write("  VdW S = {\n")
+        file.write("  VdW S = (\n")
         file.write("    rho = {:.15f} .. 11\n".format(barrier_positions[2]))
         file.write("    phi = {} .. 180\n".format(phi_barrier))
-        file.write("  }\n")
+        file.write("  )\n")
         file.write("\n")
-        file.write("  Infinity = {\n")
+        file.write("  Infinity = (\n")
         file.write("    rho = 11 .. end\n")
-        file.write("  }\n")
+        file.write("  )\n")
         file.write("\n")
-        file.write("  Gamma B = {\n")
+        file.write("  Gamma B = (\n")
         file.write("    phi = 0 .. 60\n")
         file.write("    stat = gamma\n")
-        file.write("  }\n")
+        file.write("  )\n")
         file.write("\n")
-        file.write("  Gamma A = {\n")
+        file.write("  Gamma A = (\n")
         file.write("    phi = 60 .. 180\n")
         file.write("    stat = gamma\n")
-        file.write("  }\n")
+        file.write("  )\n")
 
         if Ks[0] != Ks[1]:
             for K in range(Ks[0], Ks[1] + 1):
                 file.write("\n")
-                file.write("  K{} = {{\n".format(K))
+                file.write("  K{} = (\n".format(K))
                 file.write("    K = {} .. {}\n".format(K, K))
-                file.write("  }\n")
+                file.write("  )\n")
 
-        file.write("}\n")
+        file.write(")\n")
 
 
 def main():
