@@ -11,7 +11,7 @@ import subprocess
 from typing import List
 
 import sys
-sys.path.append("/global/u2/g/gaidai/SpectrumSDT_gfortran/scripts")
+sys.path.append("/global/u2/g/gaidai/SpectrumSDT_ifort/scripts")
 from SpectrumSDTConfig import SpectrumSDTConfig
 
 
