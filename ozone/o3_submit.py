@@ -96,7 +96,7 @@ class ParameterMaster:
     basis_results_folder = "out_basis"
     basis_2d_file = "nvec2.dat"
     overlap_results_folder = "out_overlaps"
-    eigencalc_results_folder = "out_eigencalc"
+    eigensolve_results_folder = "out_eigensolve"
     spectrum_filename = "states.fwc"
 
     @staticmethod
@@ -151,35 +151,16 @@ class ParameterMaster:
         return path.join(ParameterMaster.get_overlaps_folder(root_path, K, sym), ParameterMaster.overlap_results_folder)
 
     @staticmethod
-    def get_eigencalc_folder(root_path: str, K: int, sym: int, parity: int = None) -> str:
-        return path.join(ParameterMaster.get_sym_folder(root_path, K, sym, parity), "eigencalc")
+    def get_eigensolve_folder(root_path: str, K: int, sym: int, parity: int = None) -> str:
+        return path.join(ParameterMaster.get_sym_folder(root_path, K, sym, parity), "eigensolve")
 
     @staticmethod
-    def get_eigencalc_results_folder(root_path: str, K: int, sym: int, parity: int = None) -> str:
-        return path.join(ParameterMaster.get_eigencalc_folder(root_path, K, sym, parity), ParameterMaster.eigencalc_results_folder)
+    def get_eigensolve_results_folder(root_path: str, K: int, sym: int, parity: int = None) -> str:
+        return path.join(ParameterMaster.get_eigensolve_folder(root_path, K, sym, parity), ParameterMaster.eigensolve_results_folder)
 
     @staticmethod
     def get_spectrum_path(root_path: str, K: int, sym: int, parity: int = None) -> str:
-        return path.join(ParameterMaster.get_eigencalc_results_folder(root_path, K, sym, parity), ParameterMaster.spectrum_filename)
-
-    @staticmethod
-    def set_spectrumsdt_params(config_path: str, args: argparse.Namespace):
-        """ Sets required number of cores/nodes based on logic of spectrumsdt program.
-        :param config_path: Path to spectrumsdt config file
-        :param args: parsed input arguments """
-
-        config = SpectrumSDTConfig(config_path)
-        stage = config.get_stage()
-        if stage == "grids":
-            ParameterMaster.set_pesprint_params(config, args)
-        elif stage == "basis":
-            ParameterMaster.set_basis_params(config, args)
-        elif stage == "overlaps":
-            ParameterMaster.set_overlap_params(config, args)
-        elif stage == "eigencalc":
-            ParameterMaster.set_eigencalc_params(config, args)
-        elif stage == "properties":
-            ParameterMaster.set_properties_params(config, args)
+        return path.join(ParameterMaster.get_eigensolve_results_folder(root_path, K, sym, parity), ParameterMaster.spectrum_filename)
 
     @staticmethod
     def set_basis_params(config: SpectrumSDTConfig, args: argparse.Namespace):
@@ -192,12 +173,12 @@ class ParameterMaster:
         args.nodes = ParameterMaster.compute_nodes(args.nprocs)
 
     @staticmethod
-    def set_overlap_params(config: SpectrumSDTConfig, args: argparse.Namespace):
+    def set_overlap_params(args: argparse.Namespace):
         args.nodes = 1
         args.nprocs = ParameterMaster.compute_cores(args.nodes)
 
     @staticmethod
-    def set_eigencalc_params(config: SpectrumSDTConfig, args: argparse.Namespace):
+    def set_eigensolve_params(args: argparse.Namespace):
         args.nodes = 1
         args.nprocs = ParameterMaster.compute_cores(args.nodes)
 
@@ -208,14 +189,27 @@ class ParameterMaster:
         args.nodes = ParameterMaster.compute_nodes(args.nprocs)
 
     @staticmethod
-    def set_wfs_print_params(config: SpectrumSDTConfig, args: argparse.Namespace):
-        diag_output_path = ParameterMaster.get_eigencalc_output_path(config)
-        # make sure eigencalc worked out ok
-        assert path.isfile(diag_output_path), "eigencalc is not completed"
+    def set_spectrumsdt_params(config_path: str, args: argparse.Namespace):
+        """ Sets required number of cores/nodes based on logic of spectrumsdt program.
+        :param config_path: Path to spectrumsdt config file
+        :param args: parsed input arguments """
 
-        # set up parameters
-        args.nprocs = config.get_number_of_wfs_to_print()
-        args.nodes = ParameterMaster.compute_nodes(args.nprocs)
+        config = SpectrumSDTConfig(config_path)
+        if args.K is None:
+            stage = config.get_stage()
+        else:
+            stage = args.stage
+
+        if stage == "grids":
+            ParameterMaster.set_pesprint_params(config, args)
+        elif stage == "basis":
+            ParameterMaster.set_basis_params(config, args)
+        elif stage == "overlaps":
+            ParameterMaster.set_overlap_params(args)
+        elif stage == "eigensolve":
+            ParameterMaster.set_eigensolve_params(args)
+        elif stage == "properties":
+            ParameterMaster.set_properties_params(config, args)
 
     @staticmethod
     def read_2d_basis_dist(basis_2d_dist_path: str) -> List[int]:
@@ -281,8 +275,7 @@ class ParameterMaster:
     @staticmethod
     def generate_job_name(config_path: str) -> str:
         config_path_parts = config_path.split(ParameterMaster.job_name_separator, 1)
-        job_name = path.dirname(config_path_parts[1])
-        return job_name
+        return config_path_parts[1]
 
 
 def parse_command_line_args() -> argparse.Namespace:
@@ -308,6 +301,11 @@ def parse_command_line_args() -> argparse.Namespace:
     #  parser.add_argument("-bn", "--build-name", default="cori", help="Specifies name of the folder with build")
     parser.add_argument("-fs", "--filesystem", default="none", help="Controls filesystem requirements")
     parser.add_argument("-c", "--node-type", default="haswell", choices=["haswell", "amd"], help="Node type")
+
+    # Mass submission options
+    parser.add_argument("--K", help="Submits specified value of K")
+    parser.add_argument("--sym", help="Submits specified values of symmetry")
+    parser.add_argument("--stage", choices=["eigensolve", "properties"], help="Submits specified stages")
 
     args = parser.parse_args()
     return args
@@ -343,8 +341,14 @@ def configure_parameter_master(args: argparse.Namespace):
         raise Exception("invalid node type")
 
 
+def check_mandatory(args: argparse.Namespace):
+    # Check the presense of coditionally required arguments
+    if args.stage is None and args.K is not None:
+        raise Exception("--stage has to be specified when --K is specified")
+
+
 def resolve_defaults(args: argparse.Namespace):
-    # Some defaults depend on other values so they are set separately
+    # Coditionally determines values for some of the None values in args
     if args.config is None:
         args.config = "spectrumsdt.config"
     args.config = path.abspath(args.config)
@@ -356,15 +360,15 @@ def resolve_defaults(args: argparse.Namespace):
     if args.nprocs is None and args.nodes is None:
         ParameterMaster.set_spectrumsdt_params(args.config, args)
 
-    if args.jobname is None:
-        args.jobname = ParameterMaster.generate_job_name(args.config)
+    if args.jobname is None and args.K is None:
+        args.jobname = ParameterMaster.generate_job_name(path.dirname(args.config))
     if args.outname is None:
         args.outname = ParameterMaster.generate_out_name()
 
     if args.program_location is None:
         args.program_location = path.expandvars("$mybin")
         if len(args.program_location) == 0:
-            raise "Program location cannot be determined. Specify full path via -pl"
+            raise "Program location cannot be determined. Specify full path via -pl."
 
     if args.procs_mult is None and args.nodes_mult is None:
         args.procs_mult = 1
@@ -374,26 +378,51 @@ def resolve_defaults(args: argparse.Namespace):
     if args.nodes_mult is None and args.procs_mult is not None:
         args.nodes_mult = args.procs_mult if args.procs_mult > 1 else 1
 
-
-def postprocess_args(args: argparse.Namespace):
-    args.nprocs = math.ceil(args.nprocs * args.procs_mult)
-    args.nodes = math.ceil(args.nodes * args.nodes_mult)
-
     if args.qos is None:
         args.qos = "debug"
         if args.time > 0.5 or args.nodes > ParameterMaster.get_max_debug_nodes():
             args.qos = "regular"
 
+    if args.sym is None and args.K is not None:
+        args.sym = "[0, 1]"
+
+
+def postprocess_args(args: argparse.Namespace):
+    # Transforms args values to their final form
+    args.nprocs = math.ceil(args.nprocs * args.procs_mult)
+    args.nodes = math.ceil(args.nodes * args.nodes_mult)
+
+    if args.K is not None:
+        args.K = eval(args.K)
+        if not isinstance(args.K, list):
+            args.K = [args.K]
+    if args.sym is not None:
+        args.sym = eval(args.sym)
+
 
 def main():
     args = parse_command_line_args()
     configure_parameter_master(args)
+    check_mandatory(args)
     resolve_defaults(args)
     postprocess_args(args)
     script = SubmissionScript.assemble_script(args)
-    script.write()
-    if not args.gen_only:
-        script.submit()
+
+    if args.K is None:
+        script.write()
+        if not args.gen_only:
+            script.submit()
+    else:
+        for k in args.K:
+            os.chdir("K_{}".format(k))
+            for sym in args.sym:
+                os.chdir("symmetry_{}/{}".format(sym, args.stage))
+                script.job_name = ParameterMaster.generate_job_name(os.getcwd())
+                script.write()
+                script.submit()
+                os.chdir("../..")
+            os.chdir("..")
+
     if args.verbose:
         print("Program folder is " + args.program_location)
         print("Host name is " + ParameterMaster.host_name)
