@@ -8,6 +8,7 @@ import os
 import os.path as path
 import itertools
 import subprocess
+import copy
 from typing import List
 
 import sys
@@ -41,9 +42,10 @@ class SubmissionScript:
         nodes = str(args.nodes)
         n_procs = str(args.nprocs)
 
-        cores_per_proc = str(int(ParameterMaster.get_cores_per_node() * args.nodes / args.nprocs) * ParameterMaster.get_threads_per_core())
+        cores_per_proc = str(int(ParameterMaster.cores_per_node * args.nodes / args.nprocs) * ParameterMaster.threads_per_core)
         return cls(args.filesystem, args.qos, nodes, time, args.jobname, args.outname, ParameterMaster.nodes_type, 
                 n_procs, cores_per_proc, args.program_location, args.program_out_file_name, args.time_file_name, args.sbcast)
+
 
     def write(self):
         program_path = path.join(self.program_location, self.program_name)
@@ -93,11 +95,17 @@ class ParameterMaster:
     job_name_separator = "gaidai/"
     grid_file_names = ["grid_rho.dat", "grid_theta.dat", "grid_phi.dat"]
     pes_file_name = "pes.out"
-    basis_results_folder = "out_basis"
-    basis_2d_file = "nvec2.dat"
-    overlap_results_folder = "out_overlaps"
-    eigensolve_results_folder = "out_eigensolve"
-    spectrum_filename = "states.fwc"
+    config_filename = "spectrumsdt.config"
+
+    @staticmethod
+    def set_pesprint_params(config_path: str, args: argparse.Namespace):
+        args.nodes = 1
+        args.nprocs = ParameterMaster.compute_cores(args.nodes)
+
+    @staticmethod
+    def get_pes_path(config: SpectrumSDTConfig) -> str:
+        grid_folder = config.get_grid_path()
+        return path.join(grid_folder, ParameterMaster.pes_file_name)
 
     @staticmethod
     def get_grid_path(config: SpectrumSDTConfig, grid_num: int) -> str:
@@ -110,57 +118,6 @@ class ParameterMaster:
         grid_path = ParameterMaster.get_grid_path(config, grid_num)
         with open(grid_path, "r") as grid_file:
             return int(grid_file.readline().split()[3])  # fourth number on first line
-
-    @staticmethod
-    def get_pes_path(config: SpectrumSDTConfig) -> str:
-        grid_folder = config.get_grid_path()
-        return path.join(grid_folder, ParameterMaster.pes_file_name)
-
-    @staticmethod
-    def get_sym_string(sym: int) -> str:
-        return "even" if sym == 0 else "odd"
-
-    @staticmethod
-    def get_sym_folder(root_path: str, K: int, sym: int, parity: int = None) -> str:
-        sym_str = ParameterMaster.get_sym_string(sym)
-        if K == -1:
-            K_folder = "K_all"
-            sym_parent = path.join("K_all", "parity_{0}".format(parity))
-        else:
-            sym_parent = "K_{0}".format(K)
-        return path.join(root_path, sym_parent, sym_str)
-
-    @staticmethod
-    def get_basis_folder(root_path: str, K: int, sym: int) -> str:
-        return path.join(ParameterMaster.get_sym_folder(root_path, K, sym), "basis")
-
-    @staticmethod
-    def get_basis_results_folder(root_path: str, K: int, sym: int) -> str:
-        return path.join(ParameterMaster.get_basis_folder(root_path, K, sym), ParameterMaster.basis_results_folder)
-
-    @staticmethod
-    def get_basis_2d_path(root_path: str, K: int, sym: int) -> str:
-        return path.join(ParameterMaster.get_basis_results_folder(root_path, K, sym), ParameterMaster.basis_2d_file)
-
-    @staticmethod
-    def get_overlaps_folder(root_path: str, K: int, sym: int) -> str:
-        return path.join(ParameterMaster.get_sym_folder(root_path, K, sym), "overlaps")
-
-    @staticmethod
-    def get_overlaps_results_folder(root_path: str, K: int, sym: int) -> str:
-        return path.join(ParameterMaster.get_overlaps_folder(root_path, K, sym), ParameterMaster.overlap_results_folder)
-
-    @staticmethod
-    def get_eigensolve_folder(root_path: str, K: int, sym: int, parity: int = None) -> str:
-        return path.join(ParameterMaster.get_sym_folder(root_path, K, sym, parity), "eigensolve")
-
-    @staticmethod
-    def get_eigensolve_results_folder(root_path: str, K: int, sym: int, parity: int = None) -> str:
-        return path.join(ParameterMaster.get_eigensolve_folder(root_path, K, sym, parity), ParameterMaster.eigensolve_results_folder)
-
-    @staticmethod
-    def get_spectrum_path(root_path: str, K: int, sym: int, parity: int = None) -> str:
-        return path.join(ParameterMaster.get_eigensolve_results_folder(root_path, K, sym, parity), ParameterMaster.spectrum_filename)
 
     @staticmethod
     def set_basis_params(config: SpectrumSDTConfig, args: argparse.Namespace):
@@ -185,7 +142,7 @@ class ParameterMaster:
     @staticmethod
     def set_properties_params(config: SpectrumSDTConfig, args: argparse.Namespace):
         # set up parameters
-        args.nprocs = config.get_number_of_states()
+        args.nprocs = config.get_number_of_states() / args.states_per_proc
         args.nodes = ParameterMaster.compute_nodes(args.nprocs)
 
     @staticmethod
@@ -212,65 +169,20 @@ class ParameterMaster:
             ParameterMaster.set_properties_params(config, args)
 
     @staticmethod
-    def read_2d_basis_dist(basis_2d_dist_path: str) -> List[int]:
-        """ Returns only non-zero size blocks """
-        with open(basis_2d_dist_path, "r") as basis_2d_dist_file:
-            file_lines = basis_2d_dist_file.readlines()
-        basis_2d_sizes = list(filter(lambda x: x > 0, map(lambda x: int(x.split()[1]), file_lines)))
-        return basis_2d_sizes
-
-    @staticmethod
-    def read_1d_basis_dist(basis_1d_dist_path: str) -> List[List[int]]:
-        with open(basis_1d_dist_path, "r") as basis_1d_dist_file:
-            file_lines = basis_1d_dist_file.readlines()[1:]  # ignore header line
-        basis_1d_sizes = list(map(lambda line: list(map(int, line.split()[1:])), file_lines))
-        return basis_1d_sizes
-
-    @staticmethod
-    def generate_out_name() -> str:
-        return "out.slurm"
-
-    @staticmethod
-    def set_pesprint_params(config_path: str, args: argparse.Namespace):
-        args.nodes = 1
-        args.nprocs = ParameterMaster.compute_cores(args.nodes)
-
-    @staticmethod
-    def get_cores_per_node() -> int:
-        return ParameterMaster.cores_per_node
-
-    @staticmethod
-    def get_max_shared_cores() -> int:
-        factor = 2 if ParameterMaster.hyperthreading else 1
-        return ParameterMaster.max_shared_cores * factor
-
-    @staticmethod
-    def get_max_debug_nodes() -> int:
-        return ParameterMaster.max_debug_nodes
-
-    @staticmethod
-    def get_threads_per_core() -> int:
-        return ParameterMaster.threads_per_core
-
-    @staticmethod
-    def is_hyperthreading() -> bool:
-        return ParameterMaster.hyperthreading
-
-    @staticmethod
     def compute_nodes(cores: int, hyperthreading: bool = None) -> int:
         """ returns required number of nodes for specified number of cores """
         if hyperthreading is None:
-            hyperthreading = ParameterMaster.is_hyperthreading()
-        factor = ParameterMaster.get_threads_per_core() if hyperthreading else 1
-        return int(math.ceil(cores / (ParameterMaster.get_cores_per_node() * factor)))
+            hyperthreading = ParameterMaster.hyperthreading
+        factor = ParameterMaster.threads_per_core if hyperthreading else 1
+        return int(math.ceil(cores / (ParameterMaster.cores_per_node * factor)))
 
     @staticmethod
     def compute_cores(nodes: int, hyperthreading: bool = None) -> int:
         """ returns number of cores in the specified number of nodes """
         if hyperthreading is None:
-            hyperthreading = ParameterMaster.is_hyperthreading()
-        factor = ParameterMaster.get_threads_per_core() if hyperthreading else 1
-        return nodes * ParameterMaster.get_cores_per_node() * factor
+            hyperthreading = ParameterMaster.hyperthreading
+        factor = ParameterMaster.threads_per_core if hyperthreading else 1
+        return nodes * ParameterMaster.cores_per_node * factor
 
     @staticmethod
     def generate_job_name(config_path: str) -> str:
@@ -280,7 +192,6 @@ class ParameterMaster:
 
 def parse_command_line_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generates sbatch input file for ozone calculations")
-    parser.add_argument("-co", "--config", help="Path to configuration file")
     parser.add_argument("-q", "--qos", help="Job QoS")
     parser.add_argument("-t", "--time", type=float, default=0.5, help="Requested job time")
     parser.add_argument("-n", "--nodes", type=int, help="Desired number of nodes")
@@ -301,6 +212,9 @@ def parse_command_line_args() -> argparse.Namespace:
     #  parser.add_argument("-bn", "--build-name", default="cori", help="Specifies name of the folder with build")
     parser.add_argument("-fs", "--filesystem", default="none", help="Controls filesystem requirements")
     parser.add_argument("-c", "--node-type", default="haswell", choices=["haswell", "amd"], help="Node type")
+
+    # Stage-specific options
+    parser.add_argument("-spp", "--states-per-proc", type=int, default=8, help="Number of states per processor for properties calculation")
 
     # Mass submission options
     parser.add_argument("--K", help="Submits specified value of K")
@@ -347,11 +261,28 @@ def check_mandatory(args: argparse.Namespace):
         raise Exception("--stage has to be specified when --K is specified")
 
 
-def resolve_defaults(args: argparse.Namespace):
-    # Coditionally determines values for some of the None values in args
-    if args.config is None:
-        args.config = "spectrumsdt.config"
-    args.config = path.abspath(args.config)
+def resolve_defaults_base(args_base: argparse.Namespace):
+    # Resolves non config-specific defaults
+    if args_base.sym is None and args_base.K is not None:
+        args_base.sym = "[0, 1]"
+
+
+def parse_args(args: argparse.Namespace):
+    # Transforms string descriptions to final objects
+    if args.K is not None:
+        args.K = eval(args.K)
+        if isinstance(args.K, range):
+            args.K = list(args.K)
+        elif not hasattr(args.K, "__len__"):
+            args.K = [args.K]
+    if args.sym is not None:
+        args.sym = eval(args.sym)
+
+
+def resolve_defaults_config(args_base: argparse.Namespace) -> argparse.Namespace:
+    # Coditionally determines values for some of the None values in args based on SpectrumSDT config in the working directory
+    args = copy.deepcopy(args_base)
+    args.config = path.abspath(ParameterMaster.config_filename)
 
     if args.nodes is None and args.nprocs is not None:
         args.nodes = ParameterMaster.compute_nodes(args.nprocs)
@@ -360,10 +291,10 @@ def resolve_defaults(args: argparse.Namespace):
     if args.nprocs is None and args.nodes is None:
         ParameterMaster.set_spectrumsdt_params(args.config, args)
 
-    if args.jobname is None and args.K is None:
+    if args.jobname is None:
         args.jobname = ParameterMaster.generate_job_name(path.dirname(args.config))
     if args.outname is None:
-        args.outname = ParameterMaster.generate_out_name()
+        args.outname = "out.slurm"
 
     if args.program_location is None:
         args.program_location = path.expandvars("$mybin")
@@ -378,53 +309,46 @@ def resolve_defaults(args: argparse.Namespace):
     if args.nodes_mult is None and args.procs_mult is not None:
         args.nodes_mult = args.procs_mult if args.procs_mult > 1 else 1
 
-    if args.qos is None:
-        args.qos = "debug"
-        if args.time > 0.5 or args.nodes > ParameterMaster.get_max_debug_nodes():
-            args.qos = "regular"
-
-    if args.sym is None and args.K is not None:
-        args.sym = "[0, 1]"
-
-
-def postprocess_args(args: argparse.Namespace):
-    # Transforms args values to their final form
     args.nprocs = math.ceil(args.nprocs * args.procs_mult)
     args.nodes = math.ceil(args.nodes * args.nodes_mult)
 
-    if args.K is not None:
-        args.K = eval(args.K)
-        if not isinstance(args.K, list):
-            args.K = [args.K]
-    if args.sym is not None:
-        args.sym = eval(args.sym)
+    if args.qos is None:
+        args.qos = "debug"
+        if args.time > 0.5 or args.nodes > ParameterMaster.max_debug_nodes:
+            args.qos = "regular"
+
+    return args
+
+
+def submit_working_dir(args_base: argparse.Namespace):
+    # Updates args according to working directory config, and writes and submits corresponding job script
+    args = resolve_defaults_config(args_base)
+    script = SubmissionScript.assemble_script(args)
+    script.write()
+    if not args.gen_only:
+        script.submit()
 
 
 def main():
-    args = parse_command_line_args()
-    configure_parameter_master(args)
-    check_mandatory(args)
-    resolve_defaults(args)
-    postprocess_args(args)
-    script = SubmissionScript.assemble_script(args)
+    args_base = parse_command_line_args()
+    resolve_defaults_base(args_base)
+    parse_args(args_base)
+    configure_parameter_master(args_base)
+    check_mandatory(args_base)
 
-    if args.K is None:
-        script.write()
-        if not args.gen_only:
-            script.submit()
+    if args_base.K is None:
+        submit_working_dir(args_base)
     else:
-        for k in args.K:
+        for k in args_base.K:
             os.chdir("K_{}".format(k))
-            for sym in args.sym:
-                os.chdir("symmetry_{}/{}".format(sym, args.stage))
-                script.job_name = ParameterMaster.generate_job_name(os.getcwd())
-                script.write()
-                script.submit()
+            for sym in args_base.sym:
+                os.chdir("symmetry_{}/{}".format(sym, args_base.stage))
+                submit_working_dir(args_base)
                 os.chdir("../..")
             os.chdir("..")
 
-    if args.verbose:
-        print("Program folder is " + args.program_location)
+    if args_base.verbose:
+        print("Program folder is " + args_base.program_location)
         print("Host name is " + ParameterMaster.host_name)
         print("Script name is " + script.script_name)
 
