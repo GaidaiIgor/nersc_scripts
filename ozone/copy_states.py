@@ -9,6 +9,7 @@ def main():
     del target_path_parts[-2]
     k_folder_index = [part.startswith("K_") for part in target_path_parts].index(True)
     target_path_parts.insert(k_folder_index, "results")
+    target_path_parts[-1] = "states.ssdtp"
     target_path = Path(*target_path_parts)
     target_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(states_path, target_path)
