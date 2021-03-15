@@ -6,9 +6,7 @@ import argparse
 import math
 import os
 import os.path as path
-import itertools
 import subprocess
-import copy
 from typing import List
 
 import sys
@@ -152,10 +150,7 @@ class ParameterMaster:
         :param args: parsed input arguments """
 
         config = SpectrumSDTConfig(config_path)
-        if args.K is None:
-            stage = config.get_stage()
-        else:
-            stage = args.stage
+        stage = config.get_stage()
 
         if stage == "grids":
             ParameterMaster.set_pesprint_params(config, args)
@@ -201,8 +196,7 @@ def parse_command_line_args() -> argparse.Namespace:
     parser.add_argument("-pon", "--program-out-file-name", default="prg.out", help="Name of a separate file with program output only")
     parser.add_argument("-tfn", "--time-file-name", default="time.out", help="Name of a separate file with time output only")
     parser.add_argument("-go", "--gen-only", action="store_true", help="Generate sbatch without submission")
-    parser.add_argument("-ht", "--hyperthreading", dest="hyperthreading", action="store_true",
-                        help="Specify to enable hyperthreading")
+    parser.add_argument("-ht", "--hyperthreading", dest="hyperthreading", action="store_true", help="Specify to enable hyperthreading")
     parser.add_argument("-nm", "--node-multiplier", dest="nodes_mult", type=float, help="Multiplier for implicitly computed number of nodes")
     parser.add_argument("-pm", "--procs-multiplier", dest="procs_mult", type=float, help="Multiplier for implicitly computed number of processors")
     parser.add_argument("-v", "--verbose", action="store_true", help="Makes the script print additional information")
@@ -215,11 +209,6 @@ def parse_command_line_args() -> argparse.Namespace:
 
     # Stage-specific options
     parser.add_argument("-spp", "--states-per-proc", type=int, default=8, help="Number of states per processor for properties calculation")
-
-    # Mass submission options
-    parser.add_argument("--K", help="Submits specified value of K")
-    parser.add_argument("--sym", help="Submits specified values of symmetry")
-    parser.add_argument("--stage", choices=["eigensolve", "properties"], help="Submits specified stages")
 
     args = parser.parse_args()
     return args
@@ -255,33 +244,8 @@ def configure_parameter_master(args: argparse.Namespace):
         raise Exception("invalid node type")
 
 
-def check_mandatory(args: argparse.Namespace):
-    # Check the presense of coditionally required arguments
-    if args.stage is None and args.K is not None:
-        raise Exception("--stage has to be specified when --K is specified")
-
-
-def resolve_defaults_base(args_base: argparse.Namespace):
-    # Resolves non config-specific defaults
-    if args_base.sym is None and args_base.K is not None:
-        args_base.sym = "[0, 1]"
-
-
-def parse_args(args: argparse.Namespace):
-    # Transforms string descriptions to final objects
-    if args.K is not None:
-        args.K = eval(args.K)
-        if isinstance(args.K, range):
-            args.K = list(args.K)
-        elif not hasattr(args.K, "__len__"):
-            args.K = [args.K]
-    if args.sym is not None:
-        args.sym = eval(args.sym)
-
-
-def resolve_defaults_config(args_base: argparse.Namespace) -> argparse.Namespace:
+def resolve_defaults_config(args: argparse.Namespace):
     # Coditionally determines values for some of the None values in args based on SpectrumSDT config in the working directory
-    args = copy.deepcopy(args_base)
     args.config = path.abspath(ParameterMaster.config_filename)
 
     if args.nodes is None and args.nprocs is not None:
@@ -320,34 +284,16 @@ def resolve_defaults_config(args_base: argparse.Namespace) -> argparse.Namespace
     return args
 
 
-def submit_working_dir(args_base: argparse.Namespace):
-    # Updates args according to working directory config, and writes and submits corresponding job script
-    args = resolve_defaults_config(args_base)
+def main():
+    args = parse_command_line_args()
+    configure_parameter_master(args)
+    resolve_defaults_config(args)
     script = SubmissionScript.assemble_script(args)
     script.write()
     if not args.gen_only:
         script.submit()
 
-
-def main():
-    args_base = parse_command_line_args()
-    resolve_defaults_base(args_base)
-    parse_args(args_base)
-    configure_parameter_master(args_base)
-    check_mandatory(args_base)
-
-    if args_base.K is None:
-        submit_working_dir(args_base)
-    else:
-        for k in args_base.K:
-            os.chdir("K_{}".format(k))
-            for sym in args_base.sym:
-                os.chdir("symmetry_{}/{}".format(sym, args_base.stage))
-                submit_working_dir(args_base)
-                os.chdir("../..")
-            os.chdir("..")
-
-    if args_base.verbose:
+    if args.verbose:
         print("Program folder is " + args_base.program_location)
         print("Host name is " + ParameterMaster.host_name)
         print("Script name is " + script.script_name)
