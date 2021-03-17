@@ -47,7 +47,7 @@ def get_channels_file_path(molecule: str, J: int, K: int, sym: int) -> str:
     J_folder = "J{:02}".format(J)
     symmetry_letter = get_symmetry_letter(sym)
     K_folder = "K{:02}".format(K) + symmetry_letter
-    return script_folder_path / "script_data" / molecule_folder / J_folder / K_folder / "chrecog" / "channels.dat"
+    return script_folder_path / "script_data" / molecule_folder / J_folder / K_folder / "channels.dat"
 
 
 def load_lowest_barrier_info(channels_file_path: str) -> List[float]:
