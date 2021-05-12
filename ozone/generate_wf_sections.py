@@ -72,7 +72,7 @@ def linear_interpolation(point1: List[float], point2: List[float], query_x: floa
 
 
 def interpolate_barrier_positions(molecule: str, J: int, symmetry: int) -> List[float]:
-    """ Interpolates known barrier positions to estimate positions for given arguments """
+    """ Interpolates known barrier positions to estimate positions for given arguments. Uses K = 0 positions for any K. """
     Js_interp = select_interpolating_Js(J)
 
     # Load interpolating Js barrier position
@@ -143,12 +143,12 @@ def write_wf_sections(file_name: str, molecule: str, barrier_positions: List[flo
         file.write("    rho = 11 .. end\n")
         file.write("  )\n")
         file.write("\n")
-        file.write("  Gamma B = (\n")
+        file.write("  Gamma B (cm^-1) = (\n")
         file.write("    phi = 0 .. 60\n")
         file.write("    stat = gamma\n")
         file.write("  )\n")
         file.write("\n")
-        file.write("  Gamma A = (\n")
+        file.write("  Gamma A (cm^-1) = (\n")
         file.write("    phi = 60 .. 180\n")
         file.write("    stat = gamma\n")
         file.write("  )\n")
