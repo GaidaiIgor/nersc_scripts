@@ -91,8 +91,8 @@ class ParameterMaster:
     hyperthreading = True
     host_name = os.environ["HOST"][:-2]
     job_name_separator = "gaidai/"
-    grid_file_names = ["grid_rho.dat", "grid_theta.dat", "grid_phi.dat"]
-    pes_file_name = "pes.out"
+    grid_file_names = ["rho_info.txt", "theta_info.txt", "phi_info.txt"]
+    pes_file_name = "pes_out.txt"
     config_filename = "spectrumsdt.config"
 
     @staticmethod
