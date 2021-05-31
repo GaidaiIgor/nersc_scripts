@@ -15,13 +15,14 @@ from SpectrumSDTConfig import SpectrumSDTConfig
 
 
 class SubmissionScript:
-    def __init__(self, filesystem: str, qos: str, nodes: str, time: str, job_name: str, out_name: str, node_type: str,
+    def __init__(self, filesystem: str, qos: str, nodes: str, time: str, time_min:str, job_name: str, out_name: str, node_type: str,
             n_procs: str, cores_per_proc: str, program_location: str, program_out_file_name: str, time_file_name: str, sbcast: bool):
         self.program_name = "spectrumsdt"
         self.filesystem = filesystem
         self.qos = qos
         self.nodes = nodes
         self.time = time
+        self.time_min = time_min
         self.job_name = job_name
         self.out_name = out_name
         self.node_type = node_type
@@ -37,11 +38,12 @@ class SubmissionScript:
     def assemble_script(cls, args: argparse.Namespace) -> SubmissionScript:
         """ collects parameters and assembles input script """
         time = "{:.0f}".format(args.time * 60)
+        time_min = "{:.0f}".format(args.time_min * 60)
         nodes = str(args.nodes)
         n_procs = str(args.nprocs)
 
         cores_per_proc = str(int(ParameterMaster.cores_per_node * args.nodes / args.nprocs) * ParameterMaster.threads_per_core)
-        return cls(args.filesystem, args.qos, nodes, time, args.jobname, args.outname, ParameterMaster.nodes_type, 
+        return cls(args.filesystem, args.qos, nodes, time, time_min, args.jobname, args.outname, ParameterMaster.nodes_type,
                 n_procs, cores_per_proc, args.program_location, args.program_out_file_name, args.time_file_name, args.sbcast)
 
 
@@ -52,10 +54,10 @@ class SubmissionScript:
 
         filesystem_line = "#SBATCH -L SCRATCH\n" if self.filesystem == "scratch" else ""
         qos_line = "#SBATCH -q " + self.qos + "\n" if self.qos is not None else ""
-        min_time_line = "#SBATCH --time-min " + str(min(int(self.time), 240)) + "\n" if self.qos == "overrun" else ""
         nodes_line = "#SBATCH -N " + self.nodes + "\n" if self.nodes is not None else ""
         cores_line = "#SBATCH -n " + self.n_procs + "\n" if self.qos == "shared" else ""
         time_line = "#SBATCH -t " + self.time + "\n" if self.time is not None else ""
+        time_min_line = "#SBATCH --time-min " + self.time_min + "\n" if self.qos == "overrun" or self.qos == "flex" else ""
         job_line = "#SBATCH -J " + self.job_name + "\n" if self.job_name is not None else ""
         out_line = "#SBATCH -o " + self.out_name + "\n" if self.out_name is not None else ""
         node_type_line = "#SBATCH -C " + self.node_type + "\n"
@@ -64,10 +66,10 @@ class SubmissionScript:
         script = ("#!/bin/bash\n"
                   + filesystem_line
                   + qos_line
-                  + min_time_line
                   + nodes_line
                   + cores_line
                   + time_line
+                  + time_min_line
                   + job_line
                   + out_line
                   + node_type_line
@@ -188,7 +190,8 @@ class ParameterMaster:
 def parse_command_line_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generates sbatch input file for ozone calculations")
     parser.add_argument("-q", "--qos", help="Job QoS")
-    parser.add_argument("-t", "--time", type=float, default=0.5, help="Requested job time")
+    parser.add_argument("-t", "--time", type=float, help="Requested job time")
+    parser.add_argument("-tm", "--time-min", type=float, help="Minimum time before interruption (for flex and overrun QOS)")
     parser.add_argument("-n", "--nodes", type=int, help="Desired number of nodes")
     parser.add_argument("-np", "--nprocs", type=int, help="Desired number of processes")
     parser.add_argument("-jn", "--jobname", help="Job name")
@@ -276,9 +279,19 @@ def resolve_defaults_config(args: argparse.Namespace):
     args.nprocs = math.ceil(args.nprocs * args.procs_mult)
     args.nodes = math.ceil(args.nodes * args.nodes_mult)
 
+    if args.time is None:
+        if args.qos == "flex":
+            args.time = 2.01
+        else:
+            args.time = 0.5
+
+    if args.time_min is None:
+        args.time_min = 2
+
     if args.qos is None:
-        args.qos = "debug"
-        if args.time > 0.5 or args.nodes > ParameterMaster.max_debug_nodes:
+        if args.time <= 0.5 and args.nodes <= ParameterMaster.max_debug_nodes:
+            args.qos = "debug"
+        else:
             args.qos = "regular"
 
     return args
