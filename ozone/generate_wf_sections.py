@@ -20,14 +20,24 @@ def get_ozone_molecule(mass: str) -> str:
 
 def select_interpolating_Js(J: int) -> List[int]:
     """ Selects the values of *J_low* and *J_high* used to interpolate a given *J* """
-    if J < 4:
+    if J <= 8:
         return [4, 8]
-    elif J > 56:
+    elif J >= 52:
         return [52, 56]
     else:
         J_low = int(J / 4) * 4
         J_high = J_low + 4
         return [J_low, J_high]
+
+
+def select_interpolating_Ks(K: int) -> List[int]:
+    """ Selects the values of *K_low* and *K_high* used to interpolate a given *K* """
+    if K >= 22:
+        return [22, 24]
+    else:
+        K_low = int(K / 2) * 2
+        K_high = K_low + 2
+        return [K_low, K_high]
 
 
 def get_symmetry_letter(sym_code: int):
@@ -66,28 +76,39 @@ def load_lowest_barrier_info(channels_file_path: str) -> List[float]:
     return barrier_positions
 
 
-def linear_interpolation(point1: List[float], point2: List[float], query_x: float) -> float:
-    """ Uses two given points to linearly interpolate the value at *query_x* """
+def linear_interpolation_1d(point1: List[float], point2: List[float], query_x: float) -> float:
+    """ Uses 2 (x, y) points to linearly interpolate the value at *query_x* """
     return (point2[1] - point1[1]) / (point2[0] - point1[0]) * (query_x - point1[0]) + point1[1]
 
 
-def interpolate_barrier_positions(molecule: str, J: int, symmetry: int) -> List[float]:
-    """ Interpolates known barrier positions to estimate positions for given arguments. Uses K = 0 positions for any K. """
+def linear_interpolation_2d(point1: List[float], point2: List[float], point3: List[float], query_point: List[float]) -> float:
+    """ Uses 3 (x, y, z) points to linearly interpolate the value at *query_point* (x, y) """
+    # Interpolates in each dimension separately and add up the results
+    interp1 = linear_interpolation_1d([point1[i] for i in [0, 2]], [point2[i] for i in [0, 2]], query_point[0])
+    interp2 = linear_interpolation_1d(point1[1:], point3[1:], query_point[1])
+    return interp1 + interp2 - point1[2]
+
+
+def interpolate_barrier_positions(molecule: str, J: int, K: int, symmetry: int) -> List[float]:
+    """ Interpolates known barrier positions to estimate positions for given arguments """
     Js_interp = select_interpolating_Js(J)
+    Ks_interp = select_interpolating_Ks(K)
 
-    # Load interpolating Js barrier position
-    barrier_positions_interp = []
+    # Load known barrier positions for interpolation
+    barrier_positions_known = [[0]*len(Ks_interp) for i in range(len(Js_interp))]
     for i in range(len(Js_interp)):
-        channels_file_path = get_channels_file_path(molecule, Js_interp[i], 0, symmetry)
-        lowest_barriers = load_lowest_barrier_info(channels_file_path)
-        barrier_positions_interp.append(lowest_barriers)
+        for j in range(len(Ks_interp)):
+            channels_file_path = get_channels_file_path(molecule, Js_interp[i], Ks_interp[j], symmetry)
+            lowest_barriers = load_lowest_barrier_info(channels_file_path)
+            barrier_positions_known[i][j] = lowest_barriers
 
-    # Interpolate barrier positions for the current J
-    barrier_positions = [0]*3
-    for i in range(3):
-        point1 = [Js_interp[0], barrier_positions_interp[0][i]]
-        point2 = [Js_interp[1], barrier_positions_interp[1][i]]
-        barrier_positions[i] = linear_interpolation(point1, point2, J)
+    # Interpolate barrier positions (A, B, S)
+    barrier_positions = [0]*len(barrier_positions_known[0][0])
+    for i in range(len(barrier_positions_known[0][0])):
+        point1 = [Js_interp[0], Ks_interp[0], barrier_positions_known[0][0][i]]
+        point2 = [Js_interp[1], Ks_interp[0], barrier_positions_known[1][0][i]]
+        point3 = [Js_interp[0], Ks_interp[1], barrier_positions_known[0][1][i]]
+        barrier_positions[i] = linear_interpolation_2d(point1, point2, point3, [J, K])
 
     return barrier_positions
 
@@ -165,14 +186,14 @@ def write_wf_sections(file_name: str, molecule: str, barrier_positions: List[flo
 
 def main():
     """ Reads SpectrumSDT config, determines ozone wf integration boundaries for the specified parameters and adds them to the config """
-    config = SpectrumSDTConfig('spectrumsdt.config')
+    config = SpectrumSDTConfig("spectrumsdt.config")
     mass = config.get_mass_str()
     molecule = get_ozone_molecule(mass)
     J = config.get_J()
     Ks = config.get_Ks()
     symmetry = config.get_symmetry()
-    barrier_positions = interpolate_barrier_positions(molecule, J, symmetry)
-    write_wf_sections('spectrumsdt.config', molecule, barrier_positions, Ks)
+    barrier_positions = interpolate_barrier_positions(molecule, J, Ks[0], symmetry)
+    write_wf_sections("spectrumsdt.config", molecule, barrier_positions, Ks)
 
 
 main()
