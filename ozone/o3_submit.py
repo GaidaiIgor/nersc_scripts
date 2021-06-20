@@ -96,6 +96,7 @@ class ParameterMaster:
     grid_file_names = ["rho_info.txt", "theta_info.txt", "phi_info.txt"]
     pes_file_name = "pes_out.txt"
     config_filename = "spectrumsdt.config"
+    stage_result_name = {"eigensolve": "states.fwc", "properties": "state_properties.fwc"}
 
     @staticmethod
     def set_pesprint_params(config_path: str, args: argparse.Namespace):
@@ -209,6 +210,7 @@ def parse_command_line_args() -> argparse.Namespace:
     #  parser.add_argument("-bn", "--build-name", default="cori", help="Specifies name of the folder with build")
     parser.add_argument("-fs", "--filesystem", default="none", help="Controls filesystem requirements")
     parser.add_argument("-c", "--node-type", default="haswell", choices=["haswell", "amd"], help="Node type")
+    parser.add_argument("-r", "--resubmit", type=int, default=1, help="If 0, does not submit job if job result exists.")
 
     # Stage-specific options
     parser.add_argument("-spp", "--states-per-proc", type=int, default=8, help="Number of states per processor for properties calculation")
@@ -301,8 +303,17 @@ def main():
     args = parse_command_line_args()
     configure_parameter_master(args)
     resolve_defaults_config(args)
+
+    if args.resubmit == 0:
+        config = SpectrumSDTConfig(args.config)
+        stage = config.get_stage()
+        result_exists = path.isfile(ParameterMaster.stage_result_name[stage])
+        if result_exists:
+            return
+
     script = SubmissionScript.assemble_script(args)
     script.write()
+
     if not args.gen_only:
         script.submit()
 
