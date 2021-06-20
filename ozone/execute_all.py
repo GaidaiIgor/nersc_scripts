@@ -6,9 +6,10 @@ import subprocess
 
 def parse_command_line_args():
     parser = argparse.ArgumentParser(description="Applies a given script to all specified SpectrumSDT folders")
-    parser.add_argument("--K", required=True, help="Submits specified value of K")
+    parser.add_argument("--J", default="[None]", help="Submits specified values of J")
+    parser.add_argument("--K", default="[None]", help="Submits specified values of K")
     parser.add_argument("--sym", default="[0, 1]", help="Submits specified values of symmetry")
-    parser.add_argument("--stage", required=True, choices=["eigensolve", "properties"], help="Submits specified stages")
+    parser.add_argument("--stage", default="properties", choices=["eigensolve", "properties"], help="Submits specified stages")
     parser.add_argument("--command", required=True, help="Command to be executed in each target folder")
 
     args = parser.parse_args()
@@ -26,6 +27,8 @@ def eval_list(arg):
 
 def eval_args(args):
     # Transforms string descriptions to final objects
+    if args.J is not None:
+        args.J = eval_list(args.J)
     if args.K is not None:
         args.K = eval_list(args.K)
     if args.sym is not None:
@@ -35,13 +38,26 @@ def eval_args(args):
 def main():
     args = parse_command_line_args()
     eval_args(args)
-    for k in args.K:
-        os.chdir("K_{}".format(k))
-        for sym in args.sym:
-            os.chdir("symmetry_{}/{}".format(sym, args.stage))
-            subprocess.call(args.command, shell=True)
-            os.chdir("../..")
-        os.chdir("..")
+    for j in args.J:
+        if j is not None:
+            os.chdir(f"J_{j}")
+
+        for k in args.K:
+            if k is not None:
+                if k > j:
+                    continue
+                os.chdir(f"K_{k}")
+
+            for sym in args.sym:
+                os.chdir(f"symmetry_{sym}/{args.stage}")
+                subprocess.call(args.command, shell=True)
+                os.chdir("../..")
+
+            if k is not None:
+                os.chdir("..")
+
+        if j is not None:
+            os.chdir("..")
 
 
 if __name__ == "__main__":
