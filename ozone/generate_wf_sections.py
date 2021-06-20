@@ -173,6 +173,18 @@ def write_wf_sections(file_name: str, molecule: str, barrier_positions: List[flo
         file.write("    phi = 60 .. 180\n")
         file.write("    stat = gamma\n")
         file.write("  )\n")
+        file.write("\n")
+        file.write("  A*hbar^2 (cm^-1) = (\n")
+        file.write("    stat = A\n")
+        file.write("  )\n")
+        file.write("\n")
+        file.write("  B*hbar^2 (cm^-1) = (\n")
+        file.write("    stat = B\n")
+        file.write("  )\n")
+        file.write("\n")
+        file.write("  C*hbar^2 (cm^-1) = (\n")
+        file.write("    stat = C\n")
+        file.write("  )\n")
 
         if Ks[0] != Ks[1]:
             for K in range(Ks[0], Ks[1] + 1):
