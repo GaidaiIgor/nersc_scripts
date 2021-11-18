@@ -7,7 +7,7 @@ from SpectrumSDTConfig import SpectrumSDTConfig
 def predict_states(molecule, J, K):
     """Predicts necessary number of states for a given molecule, J and K. Coefficients are based on external fits."""
     if molecule == "O16, O18, O16":
-        states = round(2500 - 0.177526537939908 * J ** 2 - 1.1621474648769 * J - 0.867466517857143 * K ** 2 - 59.6746651785714 * K)
+        states = round(2669 - 0.173651436430318 * J ** 2 - 1.4791591758953 * J + 0.134492392030081 * K ** 2 - 76.4994026074428 * K)
     else:
         raise Exception("Unrecognized molecule")
 
