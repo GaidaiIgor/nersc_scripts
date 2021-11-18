@@ -96,7 +96,7 @@ class ParameterMaster:
     grid_file_names = ["rho_info.txt", "theta_info.txt", "phi_info.txt"]
     pes_file_name = "pes_out.txt"
     config_filename = "spectrumsdt.config"
-    stage_result_name = {"eigensolve": "states.fwc", "properties": "state_properties.fwc"}
+    stage_result_name = {"basis": "num_vectors_2d.fwc", "overlaps": "time.out", "eigensolve": "states.fwc", "properties": "state_properties.fwc"}
 
     @staticmethod
     def set_pesprint_params(config_path: str, args: argparse.Namespace):
@@ -288,7 +288,10 @@ def resolve_defaults_config(args: argparse.Namespace):
             args.time = 0.5
 
     if args.time_min is None:
-        args.time_min = 2
+        if args.time is None:
+            args.time_min = 2
+        else:
+            args.time_min = args.time
 
     if args.qos is None:
         if args.time <= 0.5 and args.nodes <= ParameterMaster.max_debug_nodes:
@@ -309,7 +312,14 @@ def main():
         stage = config.get_stage()
         result_exists = path.isfile(ParameterMaster.stage_result_name[stage])
         if result_exists:
-            return
+            if stage == 'eigensolve':
+                # Also check that result file has enough states computed
+                with open(ParameterMaster.stage_result_name[stage]) as result:
+                    last_energy = float(result.readlines()[-1].split()[0])
+                if last_energy > 1000:
+                    return
+            else:
+                return
 
     script = SubmissionScript.assemble_script(args)
     script.write()
