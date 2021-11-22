@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import numpy as np
 import pathlib
-from typing import List
+from typing import Dict, List
 
 import sys
 sys.path.append("/global/u2/g/gaidai/SpectrumSDT_ifort/scripts/")
@@ -11,7 +11,7 @@ from SpectrumSDTConfig import SpectrumSDTConfig
 def get_ozone_molecule(mass: str) -> str:
     """ Returns ozone molecule type based on specified mass string. """
     if mass == "O16, O16, O16":
-        return "686"
+        return "666"
     if mass == "O16, O18, O16":
         return "686"
     elif mass == "O18, O16, O18":
@@ -20,80 +20,71 @@ def get_ozone_molecule(mass: str) -> str:
         raise Exception("Unknown molecule")
 
 
-def get_vdw_barriers(molecule: str, sym: int, J_ind: int, K_ind: int) -> List[float]:
+def get_vdw_barriers(molecule: str, sym: int, J_ind: int, K_ind: int) -> Dict[str, float]:
     """ Loads VdW barriers correspond to the given arguments. """
     base_load_path = pathlib.Path(__file__).resolve().parent / "script_data" / "barriers" / molecule / f"sym_{sym}"
-    pathways = ["B", "A", "S"]
-    barriers_pathway = [0] * len(pathways)
-    for pathway_ind in range(len(pathways)):
-        pathway = pathways[pathway_ind]
+    pathways = ["all"] if molecule == "666" else ["B", "A", "S"]
+    vdw_barriers = {}
+    for pathway in pathways:
         load_path = base_load_path / pathway / "barriers.txt"
         barriers_JK = np.loadtxt(load_path)
-        barriers_pathway[pathway_ind] = barriers_JK[K_ind, J_ind]
+        vdw_barriers[pathway] = barriers_JK[K_ind, J_ind]
+    return vdw_barriers
 
 
-def get_phi_barrier(molecule: str) -> float:
-    """ Returns position of VdW phi barrier between symmetric and asymmetric ozone isotopomers """
+def get_phi_barriers(molecule: str) -> Dict[str, List[float]]:
+    """ Returns phi-range for each pathway. """
+    phi_barriers = {}
     if molecule == "666":
-        return 120.0
-    elif molecule == "686":
-        return 117.65
-    elif molecule == "868":
-        return 122.35
+        phi_barriers["S"] = [0, 360]
     else:
-        raise Exception("Unknown molecule")
+        if molecule == "686":
+            sym_asym_barrier = 117.65
+        elif molecule == "868":
+            sym_asym_barrier = 122.35
+        else:
+            raise Exception("Unknown molecule")
+        phi_barriers["B"] = [0, 60]
+        phi_barriers["A"] = [60, sym_asym_barrier]
+        phi_barriers["S"] = [sym_asym_barrier, 180]
+    return phi_barriers
 
 
-def write_wf_sections(file_name: str, molecule: str, vdw_barrier_positions: List[float], sym_asym_barrier_position: float, Ks: List[int]):
+def write_wf_sections(file_name: str, molecule: str, vdw_barriers: Dict[str, float], phi_barriers: Dict[str, List[float]], Ks: List[int]):
     """ Appends wave function section descriptions corresponding to given arguments to given *file_name*.
-        Barrier positions are given in order: B, A, S """
+        Barrier positions are given in order: B, A, S. """
     with open(file_name, "a") as file:
         file.write("\n")
         file.write("wf_sections = (\n")
-        file.write("  Covalent B = (\n")
-        file.write("    rho = start .. {:.15f}\n".format(vdw_barrier_positions[0]))
-        file.write("    phi = 0 .. 60\n")
-        file.write("  )\n")
-        file.write("\n")
-        file.write("  Covalent A = (\n")
-        file.write("    rho = start .. {:.15f}\n".format(vdw_barrier_positions[1]))
-        file.write("    phi = 60 .. {}\n".format(phi_barrier))
-        file.write("  )\n")
-        file.write("\n")
-        file.write("  Covalent S = (\n")
-        file.write("    rho = start .. {:.15f}\n".format(vdw_barrier_positions[2]))
-        file.write("    phi = {} .. 180\n".format(phi_barrier))
-        file.write("  )\n")
-        file.write("\n")
-        file.write("  VdW B = (\n")
-        file.write("    rho = {:.15f} .. 11\n".format(vdw_barrier_positions[0]))
-        file.write("    phi = 0 .. 60\n")
-        file.write("  )\n")
-        file.write("\n")
-        file.write("  VdW A = (\n")
-        file.write("    rho = {:.15f} .. 11\n".format(vdw_barrier_positions[1]))
-        file.write("    phi = 60 .. {}\n".format(phi_barrier))
-        file.write("  )\n")
-        file.write("\n")
-        file.write("  VdW S = (\n")
-        file.write("    rho = {:.15f} .. 11\n".format(vdw_barrier_positions[2]))
-        file.write("    phi = {} .. 180\n".format(phi_barrier))
-        file.write("  )\n")
-        file.write("\n")
+        for pathway, vdw_barrier in vdw_barriers.items():
+            file.write(f"  Covalent {pathway} = (\n")
+            file.write(f"    rho = start .. {vdw_barrier}\n")
+            if molecule == "686" or molecule == "868":
+                file.write(f"    phi = {phi_barriers[pathway][0]} .. {phi_barriers[pathway][1]}\n")
+            file.write("  )\n")
+            file.write("\n")
+        for pathway, vdw_barrier in vdw_barriers.items():
+            file.write(f"  VdW {pathway} = (\n")
+            file.write(f"    rho = {vdw_barrier} .. 11\n")
+            if molecule == "686" or molecule == "868":
+                file.write(f"    phi = {phi_barriers[pathway][0]} .. {phi_barriers[pathway][1]}\n")
+            file.write("  )\n")
+            file.write("\n")
         file.write("  Infinity = (\n")
         file.write("    rho = 11 .. end\n")
         file.write("  )\n")
         file.write("\n")
-        file.write("  Gamma B (cm^-1) = (\n")
-        file.write("    phi = 0 .. 60\n")
-        file.write("    stat = gamma\n")
-        file.write("  )\n")
-        file.write("\n")
-        file.write("  Gamma A (cm^-1) = (\n")
-        file.write("    phi = 60 .. 180\n")
-        file.write("    stat = gamma\n")
-        file.write("  )\n")
-        file.write("\n")
+        if molecule == "686" or molecule == "868":
+            file.write("  Gamma B (cm^-1) = (\n")
+            file.write("    phi = 0 .. 60\n")
+            file.write("    stat = gamma\n")
+            file.write("  )\n")
+            file.write("\n")
+            file.write("  Gamma A (cm^-1) = (\n")
+            file.write("    phi = 60 .. 180\n")
+            file.write("    stat = gamma\n")
+            file.write("  )\n")
+            file.write("\n")
         file.write("  A*hbar^2 (cm^-1) = (\n")
         file.write("    stat = A\n")
         file.write("  )\n")
@@ -129,9 +120,9 @@ def main():
     J_ind = known_Js.index(J)
     Ks = config.get_Ks()
     K_ind = known_Ks.index(Ks[0])
-    vdw_barrier_positions = get_vdw_barriers(molecule, symmetry, J_ind, K_ind)
-    phi_barrier_position = get_phi_barrier(molecule)
-    write_wf_sections("spectrumsdt.config", molecule, vdw_barrier_positions, phi_barrier_position, Ks)
+    vdw_barriers = get_vdw_barriers(molecule, symmetry, J_ind, K_ind)
+    phi_barriers = get_phi_barriers(molecule)
+    write_wf_sections("spectrumsdt.config", molecule, vdw_barriers, phi_barriers, Ks)
 
 
 main()
