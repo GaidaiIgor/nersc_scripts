@@ -142,15 +142,17 @@ def get_pathway_index(pathway_letter: str) -> int:
 
 
 def main():
-    root_path = '/global/cfs/cdirs/m409/gaidai/ozone/dev/666'
-    molecule = '868'
-    sym = 0
+    grid_path = '/global/cfs/cdirs/m409/gaidai/ozone/dev/666'
+    root_path = '/global/cfs/cdirs/m409/gaidai/ozone/dev/666/half_integers'
+    molecule = '666'
+    sym = 1
+    sym_suffix = 'H'
     pathway = 'S'
     Js = list(range(0, 33, 2)) + list(range(36, 65, 4))
     Ks = list(range(0, 21, 2))
 
     barriers = np.zeros((len(Ks), len(Js)))
-    grid = load_grid(root_path)
+    grid = load_grid(grid_path)
     for J_ind in range(len(Js)):
         J = Js[J_ind]
         for K_ind in range(len(Ks)):
@@ -165,7 +167,7 @@ def main():
                 barrier_positions = interpolate_barrier_positions_JK(molecule, J, K, K_sym)
                 barriers[K_ind, J_ind] = barrier_positions[get_pathway_index(pathway)]
 
-    np.savetxt(path.join('script_data', 'barriers', molecule, f'sym_{sym}', pathway, 'barriers.txt'), barriers)
+    np.savetxt(path.join('script_data', 'barriers', molecule, f'sym_{sym}{sym_suffix}', pathway, 'barriers.txt'), barriers)
 
 
 if __name__ == '__main__':
