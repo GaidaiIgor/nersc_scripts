@@ -1,13 +1,19 @@
 #!/usr/bin/env python
 import numpy as np
+import os
 import os.path as path
 
 
 def main():
-    root_path = '/global/cfs/cdirs/m409/gaidai/ozone/dev/emax_600/rmax_20/rstep_0.65'
+    #  root_path = '/global/cfs/cdirs/m409/gaidai/ozone/dev/686/emax_600/rmax_20/rstep_0.65'
+    #  root_path = '/global/cfs/cdirs/m409/gaidai/ozone/dev/686/emax_600/rmax_20/rstep_0.65/half_integers'
+    root_path = '/global/cfs/cdirs/m409/gaidai/ozone/dev/676/half_integers'
+    #  root_path = '/global/cfs/cdirs/m409/gaidai/ozone/dev/666/half_integers'
+    molecule = '676'
     Js = list(range(0, 33, 2)) + list(range(36, 65, 4))
     Ks = list(range(0, 21, 2))
     sym = 1
+    sym_suffix = 'H'
     target_energy = 1000
 
     num_states = np.zeros((len(Ks), len(Js)))
@@ -21,7 +27,9 @@ def main():
                 target_ind = np.where(state_energies > target_energy)[0][0]
                 num_states[K_ind, J_ind] = target_ind + 1
 
-    np.savetxt(path.join('script_data', 'num_states', '686', f'sym_{sym}', 'num_states.txt'), num_states)
+    save_dir = path.join('script_data', 'num_states', molecule, f'sym_{sym}{sym_suffix}')
+    os.makedirs(save_dir, exist_ok=True)
+    np.savetxt(path.join(save_dir, 'num_states.txt'), num_states)
 
 
 if __name__ == '__main__':
