@@ -78,6 +78,7 @@ class SubmissionScript:
                   + "echo $SLURM_JOB_ID\n"
                   + "rm -f " + self.time_file_name + "\n"
                   + export_pmi_line
+                  + "export FORT_FMT_RECL=$((10*1024*1024))\n"
                   + sbcast_line
                   + "srun -n " + self.n_procs + " -c " + self.cores_per_proc + " --cpu_bind=cores time -ao " + self.time_file_name + " " 
                   + call_location + " > " + self.program_out_file_name + "\n")
