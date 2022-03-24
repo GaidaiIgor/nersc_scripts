@@ -3,27 +3,17 @@ import numpy as np
 import pathlib
 from typing import Dict, List
 
+from common import *
+
 import sys
 sys.path.append("/global/u2/g/gaidai/SpectrumSDT_ifort/scripts/")
 from SpectrumSDTConfig import SpectrumSDTConfig
 
 
-def get_ozone_molecule(mass: str) -> str:
-    """ Returns ozone molecule type based on specified mass string. """
-    if mass == "O16, O16, O16":
-        return "666"
-    if mass == "O16, O18, O16":
-        return "686"
-    elif mass == "O18, O16, O18":
-        return "868"
-    else:
-        raise Exception("Unknown molecule")
-
-
 def get_vdw_barriers(molecule: str, sym: int, J_ind: int, K_ind: int) -> Dict[str, float]:
     """ Loads VdW barriers correspond to the given arguments. """
     base_load_path = pathlib.Path(__file__).resolve().parent / "script_data" / "barriers" / molecule / f"sym_{sym}"
-    pathways = ["all"] if molecule == "666" else ["B", "A", "S"]
+    pathways = ["all"] if is_monoisotopomer(molecule) else ["B", "A", "S"]
     vdw_barriers = {}
     for pathway in pathways:
         load_path = base_load_path / pathway / "barriers.txt"
@@ -35,11 +25,16 @@ def get_vdw_barriers(molecule: str, sym: int, J_ind: int, K_ind: int) -> Dict[st
 def get_phi_barriers(molecule: str) -> Dict[str, List[float]]:
     """ Returns phi-range for each pathway. """
     phi_barriers = {}
-    if molecule == "666":
+    monoisotopomer = is_monoisotopomer(molecule)
+    if monoisotopomer:
         phi_barriers["S"] = [0, 360]
     else:
         if molecule == "686":
             sym_asym_barrier = 117.65
+        elif molecule == "676":
+            sym_asym_barrier = 118.87
+        elif molecule == "767":
+            sym_asym_barrier = 121.13
         elif molecule == "868":
             sym_asym_barrier = 122.35
         else:
@@ -53,20 +48,21 @@ def get_phi_barriers(molecule: str) -> Dict[str, List[float]]:
 def write_wf_sections(file_name: str, molecule: str, vdw_barriers: Dict[str, float], phi_barriers: Dict[str, List[float]], Ks: List[int]):
     """ Appends wave function section descriptions corresponding to given arguments to given *file_name*.
         Barrier positions are given in order: B, A, S. """
+    monoisotopomer = is_monoisotopomer(molecule)
     with open(file_name, "a") as file:
         file.write("\n")
         file.write("wf_sections = (\n")
         for pathway, vdw_barrier in vdw_barriers.items():
             file.write(f"  Covalent {pathway} = (\n")
             file.write(f"    rho = start .. {vdw_barrier}\n")
-            if molecule == "686" or molecule == "868":
+            if not monoisotopomer:
                 file.write(f"    phi = {phi_barriers[pathway][0]} .. {phi_barriers[pathway][1]}\n")
             file.write("  )\n")
             file.write("\n")
         for pathway, vdw_barrier in vdw_barriers.items():
             file.write(f"  VdW {pathway} = (\n")
             file.write(f"    rho = {vdw_barrier} .. 11\n")
-            if molecule == "686" or molecule == "868":
+            if not monoisotopomer:
                 file.write(f"    phi = {phi_barriers[pathway][0]} .. {phi_barriers[pathway][1]}\n")
             file.write("  )\n")
             file.write("\n")
@@ -74,7 +70,7 @@ def write_wf_sections(file_name: str, molecule: str, vdw_barriers: Dict[str, flo
         file.write("    rho = 11 .. end\n")
         file.write("  )\n")
         file.write("\n")
-        if molecule == "686" or molecule == "868":
+        if not monoisotopomer:
             file.write("  Gamma B (cm^-1) = (\n")
             file.write("    phi = 0 .. 60\n")
             file.write("    stat = gamma\n")
@@ -109,8 +105,8 @@ def write_wf_sections(file_name: str, molecule: str, vdw_barriers: Dict[str, flo
 
 def main():
     """ Reads SpectrumSDT config, determines ozone wf integration boundaries for the specified parameters and adds them to the config. """
-    known_Js = list(range(0, 2, 33)) + list(range(36, 4, 65))
-    known_Ks = list(range(0, 2, 20))
+    known_Js = list(range(0, 33, 2)) + list(range(36, 65, 4))
+    known_Ks = list(range(0, 21, 2))
 
     config = SpectrumSDTConfig("spectrumsdt.config")
     mass = config.get_mass_str()
