@@ -311,7 +311,7 @@ def main():
     if args.resubmit == 0:
         config = SpectrumSDTConfig(args.config)
         stage = config.get_stage()
-        result_exists = path.isfile(ParameterMaster.stage_result_name[stage])
+        result_exists = path.isfile(ParameterMaster.stage_result_name[stage]) and os.stat(ParameterMaster.stage_result_name[stage]).st_size > 0
         if result_exists:
             if stage == 'eigensolve':
                 # Also check that result file has enough states computed
