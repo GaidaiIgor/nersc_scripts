@@ -10,7 +10,7 @@ sys.path.append("/global/u2/g/gaidai/SpectrumSDT_ifort/scripts/")
 from SpectrumSDTConfig import SpectrumSDTConfig
 
 
-def get_vdw_barriers(molecule: str, sym: int, J_ind: int, K_ind: int) -> Dict[str, float]:
+def get_vdw_barriers(molecule: str, sym: str, Js: List[int], Ks: List[int], J: int, K: int) -> Dict[str, float]:
     """ Loads VdW barriers correspond to the given arguments. """
     base_load_path = pathlib.Path(__file__).resolve().parent / "script_data" / "barriers" / molecule / f"sym_{sym}"
     pathways = ["all"] if is_monoisotopomer(molecule) else ["B", "A", "S"]
@@ -18,7 +18,7 @@ def get_vdw_barriers(molecule: str, sym: int, J_ind: int, K_ind: int) -> Dict[st
     for pathway in pathways:
         load_path = base_load_path / pathway / "barriers.txt"
         barriers_JK = np.loadtxt(load_path)
-        vdw_barriers[pathway] = barriers_JK[K_ind, J_ind]
+        vdw_barriers[pathway] = interpolate_JK(Js, Ks, barriers_JK, J, K)
     return vdw_barriers
 
 
@@ -111,12 +111,12 @@ def main():
     config = SpectrumSDTConfig("spectrumsdt.config")
     mass = config.get_mass_str()
     molecule = get_ozone_molecule(mass)
-    symmetry = config.get_symmetry()
+    symmetry = config.get_full_symmetry_name()
     J = config.get_J()
-    J_ind = known_Js.index(J)
     Ks = config.get_Ks()
-    K_ind = known_Ks.index(Ks[0])
-    vdw_barriers = get_vdw_barriers(molecule, symmetry, J_ind, K_ind)
+
+    # Taking barriers of first K (does not matter for symmetric top rotor)
+    vdw_barriers = get_vdw_barriers(molecule, symmetry, known_Js, known_Ks, J, Ks[0])
     phi_barriers = get_phi_barriers(molecule)
     write_wf_sections("spectrumsdt.config", molecule, vdw_barriers, phi_barriers, Ks)
 
