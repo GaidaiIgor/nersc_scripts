@@ -7,6 +7,9 @@ def main():
     """Copies file state_properties.fwc from the working directory to the target directory.
     Target directory path is formed by inserting 'results' before the J folder and remove stage folder name."""
     states_path = Path("state_properties.fwc").absolute()
+    if not states_path.is_file():
+        print(f'{states_path} not found')
+        return
     target_path_parts = list(states_path.parts)
     del target_path_parts[-2] # delete stage folder
     j_part_index = [part.startswith("J_") for part in target_path_parts].index(True)
