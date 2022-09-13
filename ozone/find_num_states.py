@@ -5,14 +5,13 @@ import os.path as path
 
 
 def main():
-    #  root_path = '/global/cfs/cdirs/m409/gaidai/ozone/dev/686/emax_600/rmax_20/rstep_0.65'
-    #  root_path = '/global/cfs/cdirs/m409/gaidai/ozone/dev/686/emax_600/rmax_20/rstep_0.65/half_integers'
-    root_path = '/global/cfs/cdirs/m409/gaidai/ozone/dev/676/'
-    molecule = '676'
+    #  root_path = '/global/cfs/cdirs/m409/gaidai/ozone/dev/676/half_integers'
+    root_path = '/global/cfs/cdirs/m409/gaidai/ozone/dev/686/emax_600/rmax_20/rstep_0.65/half_integers'
+    molecule = '686'
     Js = list(range(0, 33)) + list(range(36, 65, 4))
     Ks = list(range(0, 21))
-    sym = 1
-    sym_suffix = ''
+    sym = 0
+    sym_suffix = 'H'
     target_energy = 1000
 
     num_states = np.zeros((len(Ks), len(Js)))

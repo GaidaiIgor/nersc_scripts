@@ -39,16 +39,18 @@ def find_barriers(root_path, molecule, J, K, sym, grid):
     if path.exists(energies_path):
         load_channels = 1 if monoisotopomer else 5
         energies = np.loadtxt(energies_path, skiprows=1, usecols=list(range(load_channels)))
+        energies = energies.reshape(energies.shape[0], -1)
+
         barriers = np.zeros((load_channels, 2))  # barrier positions and energies
         for ch_ind in range(load_channels):
             peaks = signal.find_peaks(energies[:, ch_ind], height=(-5000, 5000))[0]
             barriers[ch_ind, :] = interpolate_energies_2d(grid[peaks[0] - 1 : peaks[0] + 2], energies[peaks[0] - 1 : peaks[0] + 2, ch_ind])
         barriers = barriers[barriers[:, 1].argsort(), :]  # sort by energy
-        barriers = sorted(barriers[:num_pathways, 0])  # sort lowest pathway energies by position.
+        barriers = barriers[barriers[:num_pathways, 0].argsort(), :]  # sort lowest pathway energies by position
         if not is_heavy(molecule):
-            barriers = barriers[::-1]  # light molecules have inverse barrier order
+            barriers = barriers[::-1, :]  # light molecules have inverse barrier order
     else:
-        barriers = np.array([0]*num_pathways)
+        barriers = np.zeros((num_pathways, 2))
 
     return barriers
 
@@ -151,32 +153,35 @@ def interpolate_barrier_positions_JK(molecule: str, J: int, K: int, symmetry: in
 
 
 def main():
-    grid_path = '/global/cfs/cdirs/m409/gaidai/ozone/dev/676'
-    root_path = '/global/cfs/cdirs/m409/gaidai/ozone/dev/676/half_integers'
-    molecule = '676'
-    sym = 1
-    sym_suffix = 'H'
+    grid_path = '/global/cfs/cdirs/m409/gaidai/ozone/dev/666'
+    root_path = '/global/cfs/cdirs/m409/gaidai/ozone/dev/666'
+    molecule = '666'
+    sym = 0
+    sym_suffix = ''
     pathways = ['all'] if is_monoisotopomer(molecule) else ['B', 'A', 'S']
     Js = list(range(0, 33, 2)) + list(range(36, 65, 4))
     Ks = list(range(0, 21, 2))
 
-    barriers = np.zeros((len(Ks), len(Js), len(pathways)))
+    barriers = np.zeros((len(Ks), len(Js), len(pathways), 2))  # last dim: position, energy
     grid = load_grid(grid_path)
     for J_ind, J in enumerate(Js):
         for K_ind, K in enumerate(Ks):
             if K > J:
                 continue
-            if molecule == '686' or molecule == '868':
-                # Assuming the only symmetries in this case are 0 or 1
-                K_sym = sym if K % 2 == 0 else 1 - sym
-                barriers[K_ind, J_ind, :] = interpolate_barrier_positions_JK(molecule, J, K, K_sym)
-            else:
-                barriers[K_ind, J_ind, :] = find_barriers(root_path, molecule, J, K, sym, grid)
+            barriers[K_ind, J_ind, :, :] = find_barriers(root_path, molecule, J, K, sym, grid)
+
+            #  if molecule == '686' or molecule == '868':
+            #      # Assuming the only symmetries in this case are 0 or 1
+            #      K_sym = sym if K % 2 == 0 else 1 - sym
+            #      barriers[K_ind, J_ind, :] = interpolate_barrier_positions_JK(molecule, J, K, K_sym)
+            #  else:
+            #      barriers[K_ind, J_ind, :] = find_barriers(root_path, molecule, J, K, sym, grid)
 
     for ind, pathway in enumerate(pathways):
         save_dir = path.join('script_data', 'barriers', molecule, f'sym_{sym}{sym_suffix}', pathway)
         os.makedirs(save_dir, exist_ok=True)
-        np.savetxt(path.join(save_dir, 'barriers.txt'), barriers[:, :, ind])
+        np.savetxt(path.join(save_dir, 'barrier_positions.txt'), barriers[:, :, ind, 0], fmt='%25.16e')
+        np.savetxt(path.join(save_dir, 'barrier_energies.txt'), barriers[:, :, ind, 1], fmt='%25.16e')
 
 
 if __name__ == '__main__':
