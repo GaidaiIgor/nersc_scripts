@@ -12,7 +12,7 @@ from SpectrumSDTConfig import SpectrumSDTConfig
 def estimate_states(Js, Ks, num_states_ref, J, K, mult):
     """ Estimates necessary number of states for given J and K. Js and Ks are values of J and K for num_states_ref. """
     states_interp = interpolate_JK(Js, Ks, num_states_ref, J, K)
-    states = int(math.ceil(states_interp * mult))
+    states = int(math.ceil(states_interp * mult(K)))
     return states
 
 
@@ -32,11 +32,16 @@ def main():
     Ks = list(range(0, 21))
     config = SpectrumSDTConfig('spectrumsdt.config')
     mass = config.get_mass_str()
+
     molecule = get_ozone_molecule(mass)
-    use_half_integers = config.get_half_integers()
-    sym_suffix = 'H' if use_half_integers else ''
+    molecule = '666'
+
+    sym_name = config.get_full_symmetry_name()
+
     mult = 1 if is_monoisotopomer(molecule) else 1/3
-    load_path = f'/global/u2/g/gaidai/nersc_scripts/ozone/script_data/num_states/{molecule}/sym_1{sym_suffix}/num_states.txt'
+    mult = lambda K: 1.15 + 0.02*K
+
+    load_path = f'/global/u2/g/gaidai/nersc_scripts/ozone/script_data/num_states/{molecule}/sym_{sym_name}/num_states.txt'
     num_states_ref = np.loadtxt(load_path)
 
     J = config.get_J()
