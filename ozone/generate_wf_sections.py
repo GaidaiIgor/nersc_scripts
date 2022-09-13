@@ -81,15 +81,15 @@ def write_wf_sections(file_name: str, molecule: str, vdw_barriers: Dict[str, flo
             file.write("    stat = gamma\n")
             file.write("  )\n")
             file.write("\n")
-        file.write("  A*hbar^2 (cm^-1) = (\n")
+        file.write("  A (cm^-1) = (\n")
         file.write("    stat = A\n")
         file.write("  )\n")
         file.write("\n")
-        file.write("  B*hbar^2 (cm^-1) = (\n")
+        file.write("  B (cm^-1) = (\n")
         file.write("    stat = B\n")
         file.write("  )\n")
         file.write("\n")
-        file.write("  C*hbar^2 (cm^-1) = (\n")
+        file.write("  C (cm^-1) = (\n")
         file.write("    stat = C\n")
         file.write("  )\n")
 
@@ -111,7 +111,8 @@ def main():
     config = SpectrumSDTConfig("spectrumsdt.config")
     mass = config.get_mass_str()
     molecule = get_ozone_molecule(mass)
-    symmetry = config.get_full_symmetry_name()
+    #  symmetry = config.get_full_symmetry_name()
+    symmetry = '1'
     J = config.get_J()
     Ks = config.get_Ks()
 
